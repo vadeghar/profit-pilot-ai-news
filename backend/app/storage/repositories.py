@@ -1,5 +1,4 @@
 import json
-import sqlite3
 
 from app.domain.models import AiDecision, NewsEvent
 from app.storage.database import SqliteDatabase
@@ -40,6 +39,23 @@ class NewsEventRepository:
             symbols=json.loads(row["symbols_json"]),
             materiality=row["materiality"],
         )
+
+    def list_recent(self, limit: int = 50) -> list[NewsEvent]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM news_events ORDER BY published_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [
+            NewsEvent(
+                id=row["id"],
+                title=row["title"],
+                source=row["source"],
+                published_at=row["published_at"],
+                symbols=json.loads(row["symbols_json"]),
+                materiality=row["materiality"],
+            )
+            for row in rows
+        ]
 
 
 class AiDecisionRepository:
