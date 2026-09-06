@@ -6,7 +6,7 @@ class Settings(BaseSettings):
 
     app_name: str = "Profit Pilot AI News"
     environment: str = "development"
-    database_url: str = "postgresql+asyncpg://profitpilot:profitpilot@localhost:5432/profitpilot"
+    database_url: str = "sqlite:///backend/data/profit_pilot.db"
     redis_url: str = "redis://localhost:6379/0"
     llm_provider: str = "stub"
 

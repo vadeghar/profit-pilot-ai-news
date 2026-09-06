@@ -32,11 +32,8 @@ class NewsEventRepository:
         if row is None:
             return None
         return NewsEvent(
-            id=row["id"],
-            title=row["title"],
-            source=row["source"],
-            published_at=row["published_at"],
-            symbols=json.loads(row["symbols_json"]),
+            id=row["id"], title=row["title"], source=row["source"],
+            published_at=row["published_at"], symbols=json.loads(row["symbols_json"]),
             materiality=row["materiality"],
         )
 
@@ -47,11 +44,8 @@ class NewsEventRepository:
             ).fetchall()
         return [
             NewsEvent(
-                id=row["id"],
-                title=row["title"],
-                source=row["source"],
-                published_at=row["published_at"],
-                symbols=json.loads(row["symbols_json"]),
+                id=row["id"], title=row["title"], source=row["source"],
+                published_at=row["published_at"], symbols=json.loads(row["symbols_json"]),
                 materiality=row["materiality"],
             )
             for row in rows
@@ -62,13 +56,29 @@ class AiDecisionRepository:
     def __init__(self, database: SqliteDatabase) -> None:
         self.database = database
 
-    def save(self, event_id: str, decision: AiDecision) -> int:
+    def save(self, event_id: str, decision: AiDecision, prompt: str, input_snapshot: str) -> int:
         with self.database.connect() as connection:
             cursor = connection.execute(
                 """INSERT INTO ai_decisions
-                   (news_event_id, signal, confidence, reasoning, prompt_version, model)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (event_id, decision.signal.value, decision.confidence,
-                 decision.reasoning, decision.prompt_version, decision.model),
+                   (news_event_id, signal, confidence, reasoning, prompt_version, model,
+                    prompt_text, input_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (event_id, decision.signal.value, decision.confidence, decision.reasoning,
+                 decision.prompt_version, decision.model, prompt, input_snapshot),
             )
             return int(cursor.lastrowid)
+
+    def list_for_event(self, event_id: str) -> list[AiDecision]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """SELECT signal, confidence, reasoning, prompt_version, model
+                   FROM ai_decisions WHERE news_event_id = ? ORDER BY id DESC""",
+                (event_id,),
+            ).fetchall()
+        return [
+            AiDecision(
+                signal=row["signal"], confidence=row["confidence"], reasoning=row["reasoning"],
+                prompt_version=row["prompt_version"], model=row["model"],
+            )
+            for row in rows
+        ]

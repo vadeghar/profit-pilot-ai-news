@@ -1,18 +1,23 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 
 from app.config import settings
-from app.domain.models import MarketBrainSnapshot, NewsEvent
+from app.domain.models import AiDecision, MarketBrainSnapshot, NewsEvent
+from app.providers.stub_llm import StubLlmProvider
 from app.providers.stub_news import StubNewsProvider
+from app.services.ai_analysis import AiAnalysisService
 from app.services.news_ingestion import NewsIngestionService
-from app.storage import NewsEventRepository, SqliteDatabase
+from app.storage import AiDecisionRepository, NewsEventRepository, SqliteDatabase
 
 
 database = SqliteDatabase(settings.database_url)
 news_repository = NewsEventRepository(database)
+decision_repository = AiDecisionRepository(database)
 news_provider = StubNewsProvider()
+llm_provider = StubLlmProvider()
 news_ingestion = NewsIngestionService(news_provider, news_repository)
+ai_analysis = AiAnalysisService(news_repository, decision_repository, llm_provider)
 
 
 @asynccontextmanager
@@ -43,6 +48,21 @@ async def list_news(limit: int = 50) -> list[NewsEvent]:
     if limit < 1 or limit > 200:
         limit = 50
     return news_repository.list_recent(limit)
+
+
+@app.post("/api/v1/news/{event_id}/analyze", response_model=AiDecision)
+async def analyze_news(event_id: str) -> AiDecision:
+    try:
+        return await ai_analysis.analyze(event_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/api/v1/news/{event_id}/decisions", response_model=list[AiDecision])
+async def list_ai_decisions(event_id: str) -> list[AiDecision]:
+    if news_repository.get(event_id) is None:
+        raise HTTPException(status_code=404, detail=f"News event not found: {event_id}")
+    return ai_analysis.decisions_for_event(event_id)
 
 
 @app.get("/api/v1/market-brain/snapshot", response_model=MarketBrainSnapshot)
