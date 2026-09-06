@@ -1,0 +1,24 @@
+<main class="shell">
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">PROFIT PILOT</div>
+      <h1>Market Brain</h1>
+    </div>
+    <div class="phase">{{ snapshot.phase }}</div>
+  </header>
+
+  <section class="canvas">
+    <div class="empty" *ngIf="snapshot.nodes.length === 0">
+      <div class="pulse"></div>
+      <h2>Waiting for market intelligence</h2>
+      <p>News → AI → Stocks → Signals → Paper Trades</p>
+      <span>WebSocket connected to the paper-trading event stream.</span>
+    </div>
+    <div class="nodes" *ngIf="snapshot.nodes.length > 0">
+      <article class="node" *ngFor="let node of snapshot.nodes">
+        <small>{{ node.kind }}</small>
+        <strong>{{ node.label }}</strong>
+      </article>
+    </div>
+  </section>
+</main>
