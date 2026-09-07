@@ -18,13 +18,26 @@
             "tsConfig": "tsconfig.app.json",
             "assets": [],
             "styles": ["src/styles.css"]
-          }
+          },
+          "configurations": {
+            "production": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.production.ts"
+                }
+              ],
+              "outputHashing": "all"
+            },
+            "development": {}
+          },
+          "defaultConfiguration": "production"
         },
         "serve": {
           "builder": "@angular/build:dev-server",
           "configurations": {
-            "production": { "buildTarget": "profit-pilot-ai-news-ui:build" },
-            "development": { "buildTarget": "profit-pilot-ai-news-ui:build" }
+            "production": { "buildTarget": "profit-pilot-ai-news-ui:build:production" },
+            "development": { "buildTarget": "profit-pilot-ai-news-ui:build:development" }
           },
           "defaultConfiguration": "development"
         }

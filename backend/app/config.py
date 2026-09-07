@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     database_url: str = "sqlite:///backend/data/profit_pilot.db"
     redis_url: str = "redis://localhost:6379/0"
+    cors_origins: str = "http://localhost:4200,http://127.0.0.1:4200"
     llm_provider: str = "stub"
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.7-flash"
@@ -37,6 +38,10 @@ class Settings(BaseSettings):
     angel_totp_secret: str | None = None
     angel_exchange: str = "NSE"
     angel_symbol_tokens_json: str = "{}"
+
+    @property
+    def allowed_origins(self) -> list[str]:
+        return [item.strip() for item in self.cors_origins.split(",") if item.strip()]
 
     @property
     def angel_symbol_tokens(self) -> dict[str, str]:
