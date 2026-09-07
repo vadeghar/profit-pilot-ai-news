@@ -108,7 +108,7 @@
         <h3>{{ selectedNode.kind === 'TOTAL_PNL' ? 'Portfolio P&L' : selectedNode.label }}</h3>
         <section class="pnl-card" *ngIf="selectedNode.kind === 'TOTAL_PNL'">
           <span>TOTAL P&L</span>
-          <strong [class.pnl-loss]="Number(selectedNode.metadata['total_pnl'] ?? 0) < 0">₹ {{ selectedNode.metadata['total_pnl'] ?? '0.00' }}</strong>
+          <strong [class.pnl-loss]="selectedNode.metadata['status'] === 'LOSS'">₹ {{ selectedNode.metadata['total_pnl'] ?? '0.00' }}</strong>
           <small>{{ selectedNode.metadata['trade_count'] ?? 0 }} trades · {{ selectedNode.metadata['status'] }}</small>
         </section>
         <section class="trade-card" *ngIf="selectedNode.kind === 'TRADE'">
