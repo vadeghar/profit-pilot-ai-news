@@ -46,12 +46,43 @@
 
     <aside class="inspector" *ngIf="selectedNode">
       <div class="inspector-head"><span>{{ selectedNode.kind }}</span><button (click)="closeInspector()" aria-label="Close">×</button></div>
-      <h3>{{ selectedNode.label }}</h3>
-      <dl>
-        <ng-container *ngFor="let item of selectedNode.metadata | keyvalue">
-          <dt>{{ item.key }}</dt><dd>{{ item.value }}</dd>
-        </ng-container>
-      </dl>
+
+      <ng-container *ngIf="selectedNode.kind === 'STOCK'; else genericInspector">
+        <h3>{{ selectedNode.label }}</h3>
+
+        <section class="decision-card">
+          <div class="decision-kicker">AI DECISION</div>
+          <div class="decision-action" [class.decision-buy]="stockSignal() === 'BUY'" [class.decision-sell]="stockSignal() === 'SELL'" [class.decision-ignore]="stockSignal() === 'IGNORE'">
+            {{ stockAction() }}
+          </div>
+          <div class="decision-confidence">AI CONFIDENCE <b>{{ confidencePercent() }}%</b></div>
+          <p>{{ stockActionGuidance() }}</p>
+        </section>
+
+        <section class="reason-card">
+          <div class="section-kicker">WHY</div>
+          <p>{{ selectedNode.metadata['ai_reasoning'] || 'No AI reasoning is available for this stock yet.' }}</p>
+        </section>
+
+        <dl class="stock-facts">
+          <dt>Latest news</dt><dd>{{ selectedNode.metadata['latest_news'] }}</dd>
+          <dt>News source</dt><dd>{{ selectedNode.metadata['news_source'] }}</dd>
+          <dt>Materiality</dt><dd>{{ selectedNode.metadata['news_materiality'] }}</dd>
+          <dt>Entity match</dt><dd>{{ selectedNode.metadata['matched_alias'] }}</dd>
+          <dt>Entity confidence</dt><dd>{{ entityConfidencePercent() }}% — {{ selectedNode.metadata['entity_match_type'] }}</dd>
+          <dt>Symbol</dt><dd>{{ selectedNode.metadata['symbol'] }}</dd>
+          <dt>AI model</dt><dd>{{ selectedNode.metadata['ai_model'] }}</dd>
+        </dl>
+      </ng-container>
+
+      <ng-template #genericInspector>
+        <h3>{{ selectedNode.label }}</h3>
+        <dl>
+          <ng-container *ngFor="let item of selectedNode.metadata | keyvalue">
+            <dt>{{ item.key }}</dt><dd>{{ item.value }}</dd>
+          </ng-container>
+        </dl>
+      </ng-template>
     </aside>
   </section>
 </main>
