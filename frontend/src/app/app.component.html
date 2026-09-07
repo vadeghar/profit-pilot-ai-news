@@ -47,9 +47,31 @@
     <aside class="inspector" *ngIf="selectedNode">
       <div class="inspector-head"><span>{{ selectedNode.kind }}</span><button (click)="closeInspector()" aria-label="Close">×</button></div>
       <h3>{{ selectedNode.label }}</h3>
+
+      <ng-container *ngIf="selectedNode.kind === 'STOCK'">
+        <div class="stock-action" [class.action-buy]="selectedNode.metadata['action'] === 'BUY'" [class.action-sell]="selectedNode.metadata['action'] === 'SELL'" [class.action-ignore]="selectedNode.metadata['action'] === 'IGNORE'">
+          <span class="action-label">WHAT TO DO</span>
+          <strong>{{ selectedNode.metadata['action'] || 'WAIT' }}</strong>
+        </div>
+        <div class="decision-confidence">
+          AI confidence: <b>{{ selectedNode.metadata['ai_confidence'] != null ? ((+selectedNode.metadata['ai_confidence'] * 100 | number:'1.0-0') + '%') : 'N/A' }}</b>
+        </div>
+        <div class="why-block">
+          <div class="section-label">WHY</div>
+          <p>{{ selectedNode.metadata['ai_reasoning'] || 'No AI reasoning is available for this stock yet.' }}</p>
+        </div>
+        <div class="context-block">
+          <div class="section-label">NEWS BEHIND THE DECISION</div>
+          <p>{{ selectedNode.metadata['news_title'] || 'No linked news headline.' }}</p>
+          <small>{{ selectedNode.metadata['news_source'] || '' }}</small>
+        </div>
+      </ng-container>
+
       <dl>
         <ng-container *ngFor="let item of selectedNode.metadata | keyvalue">
-          <dt>{{ item.key }}</dt><dd>{{ item.value }}</dd>
+          <ng-container *ngIf="selectedNode.kind !== 'STOCK' || !['action','ai_confidence','ai_reasoning','news_title','news_source'].includes(item.key)">
+            <dt>{{ item.key }}</dt><dd>{{ item.value }}</dd>
+          </ng-container>
         </ng-container>
       </dl>
     </aside>
