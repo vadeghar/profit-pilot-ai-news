@@ -23,6 +23,7 @@ interface HealthStatus {
   llm_provider: string;
   news_loop: string;
   poll_interval_seconds: number;
+  ai_queue_pending: number;
   last_cycle_at: string | null;
   last_cycle_new: number;
   last_cycle_processed: number;
@@ -66,12 +67,10 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private connectBrain(): void {
     if (this.destroyed) return;
-
     const wsBaseUrl = environment.apiBaseUrl.replace(/^http/i, 'ws').replace(/\/$/, '');
     this.socketState = 'CONNECTING';
     this.cdr.markForCheck();
     this.socket = new WebSocket(`${wsBaseUrl}/ws/market-brain`);
-
     this.socket.onopen = () => {
       this.reconnectAttempts = 0;
       this.socketState = 'LIVE';
@@ -115,16 +114,11 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       const health = await response.json() as HealthStatus;
       const previousCycle = this.health?.last_cycle_at;
       this.health = health;
-      if (this.snapshot.phase !== health.market_phase) {
-        this.snapshot = { ...this.snapshot, phase: health.market_phase };
-      }
+      if (this.snapshot.phase !== health.market_phase) this.snapshot = { ...this.snapshot, phase: health.market_phase };
       if (health.last_cycle_at && health.last_cycle_at !== previousCycle) {
-        const cycleTime = this.formatTime(health.last_cycle_at);
-        this.pushActivity(`RSS // SCAN COMPLETE ${cycleTime} // ${health.last_cycle_new} NEW // ${health.last_cycle_processed} PROCESSED`);
+        this.pushActivity(`RSS // SCAN COMPLETE ${this.formatTime(health.last_cycle_at)} // ${health.last_cycle_new} NEW // ${health.last_cycle_processed} PROCESSED`);
       }
-      if (health.last_cycle_error) {
-        this.pushActivity(`PIPELINE // WARNING // ${health.last_cycle_error}`);
-      }
+      if (health.last_cycle_error) this.pushActivity(`PIPELINE // WARNING // ${health.last_cycle_error}`);
       this.cdr.markForCheck();
     } catch {
       this.pushActivity('SYSTEM // BACKEND TELEMETRY UNAVAILABLE');
@@ -139,11 +133,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       const news = await response.json() as NewsEvent[];
       const previousIds = new Set(this.recentNews.map(item => item.id));
       this.recentNews = news;
-      for (const item of news.slice(0, 3).reverse()) {
-        if (!previousIds.has(item.id)) {
-          this.pushActivity(`NEWS // ${item.source.toUpperCase()} // ${item.title}`);
-        }
-      }
+      for (const item of news.slice(0, 3).reverse()) if (!previousIds.has(item.id)) this.pushActivity(`NEWS // ${item.source.toUpperCase()} // ${item.title}`);
       this.cdr.markForCheck();
     } catch {
       // Health telemetry remains the source of truth when the news endpoint is unavailable.
@@ -151,34 +141,24 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private apiBaseUrl(): string { return environment.apiBaseUrl.replace(/\/$/, ''); }
-
   private pushActivity(message: string): void {
     const stamp = new Date().toLocaleTimeString('en-IN', { hour12: false });
     const line = `${stamp}  ${message}`;
     this.activity = [line, ...this.activity.filter(item => item !== line)].slice(0, 12);
   }
-
-  private formatTime(value: string): string {
-    return new Date(value).toLocaleTimeString('en-IN', { hour12: false, timeZone: 'Asia/Kolkata' });
-  }
+  private formatTime(value: string): string { return new Date(value).toLocaleTimeString('en-IN', { hour12: false, timeZone: 'Asia/Kolkata' }); }
 
   formatMetadataKey(key: string): string {
-    const labels: Record<string, string> = {
-      published_at: 'News published (IST)', analyzed_at: 'AI analyzed (IST)', ai_analyzed_at: 'AI analyzed (IST)', created_at: 'Created (IST)',
-    };
+    const labels: Record<string, string> = { published_at: 'News published (IST)', analyzed_at: 'AI analyzed (IST)', ai_analyzed_at: 'AI analyzed (IST)', created_at: 'Created (IST)' };
     return labels[key] ?? key;
   }
-
   formatMetadataValue(key: string, value: string | number | boolean): string | number | boolean {
     if (typeof value === 'string' && (key.endsWith('_at') || key === 'published_at') && value) {
       const date = new Date(value);
-      if (!Number.isNaN(date.getTime())) {
-        return new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(date);
-      }
+      if (!Number.isNaN(date.getTime())) return new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(date);
     }
     return value;
   }
-
   dateMetadataValue(value: string | number | boolean | undefined): string | number | null {
     if (typeof value === 'string' || typeof value === 'number') return value;
     return null;
@@ -212,8 +192,6 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       const target = typeof edge.target === 'string' ? edge.target : edge.target.id;
       return nodeIds.has(source) && nodeIds.has(target);
     }).map(edge => ({ ...edge }));
-
-    const connectionKey = (edge: BrainEdge): string => `${typeof edge.source === 'string' ? edge.source : edge.source.id}|${typeof edge.target === 'string' ? edge.target : edge.target.id}`;
     const nodeConnections = new Map<string, Set<string>>();
     for (const edge of links) {
       const source = typeof edge.source === 'string' ? edge.source : edge.source.id;
@@ -224,12 +202,8 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       nodeConnections.get(target)?.add(source);
     }
 
-    const link = svg.append('g').attr('class', 'links').selectAll<SVGLineElement, BrainEdge>('line').data(links).join('line')
-      .attr('class', 'brain-link').attr('marker-end', 'url(#arrow)').attr('stroke-dasharray', '2 9');
-
-    const node = svg.append('g').attr('class', 'nodes').selectAll<SVGGElement, BrainNode>('g').data(nodes).join('g')
-      .attr('class', 'brain-node').on('click', (_, d) => this.selectNode(d));
-
+    const link = svg.append('g').attr('class', 'links').selectAll<SVGLineElement, BrainEdge>('line').data(links).join('line').attr('class', 'brain-link').attr('marker-end', 'url(#arrow)').attr('stroke-dasharray', '2 9');
+    const node = svg.append('g').attr('class', 'nodes').selectAll<SVGGElement, BrainNode>('g').data(nodes).join('g').attr('class', 'brain-node').on('click', (_, d) => this.selectNode(d));
     node.append('circle').attr('class', 'node-aura').attr('r', d => d.kind === 'AI' ? 38 : d.kind === 'STOCK' ? 31 : 27);
     node.append('circle').attr('r', d => d.kind === 'AI' ? 23 : d.kind === 'STOCK' ? 19 : 17).attr('class', d => `node-${d.kind.toLowerCase()}`);
     node.filter(d => d.kind === 'AI').append('circle').attr('class', 'node-core').attr('r', 5);
@@ -256,10 +230,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     });
 
     const dragBehavior = d3.drag<SVGGElement, BrainNode>()
-      .on('start', (event, d) => {
-        if (!event.active) this.simulation?.alphaTarget(.25).restart();
-        d.x = event.x; d.y = event.y;
-      })
+      .on('start', (event, d) => { if (!event.active) this.simulation?.alphaTarget(.25).restart(); d.x = event.x; d.y = event.y; })
       .on('drag', (event, d) => { d.x = event.x; d.y = event.y; })
       .on('end', (event) => { if (!event.active) this.simulation?.alphaTarget(0); });
     node.call(dragBehavior);
@@ -271,10 +242,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       .force('y', d3.forceY<BrainNode>(height / 2).strength(.12))
       .force('collision', d3.forceCollide<BrainNode>(46))
       .on('tick', () => {
-        nodes.forEach(d => {
-          d.x = Math.max(45, Math.min(width - 45, d.x ?? width / 2));
-          d.y = Math.max(65, Math.min(height - 55, d.y ?? height / 2));
-        });
+        nodes.forEach(d => { d.x = Math.max(45, Math.min(width - 45, d.x ?? width / 2)); d.y = Math.max(65, Math.min(height - 55, d.y ?? height / 2)); });
         link.attr('x1', d => this.coordinate(d.source, 'x')).attr('y1', d => this.coordinate(d.source, 'y')).attr('x2', d => this.coordinate(d.target, 'x')).attr('y2', d => this.coordinate(d.target, 'y'));
         node.attr('transform', d => `translate(${d.x},${d.y})`);
       });
@@ -288,30 +256,10 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
     return minutes < 1 ? 'NOW' : minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`;
   }
-
-  private coordinate(value: string | BrainNode, axis: 'x' | 'y'): number {
-    if (typeof value === 'string') return 0;
-    return value[axis] ?? 0;
-  }
-
+  private coordinate(value: string | BrainNode, axis: 'x' | 'y'): number { return typeof value === 'string' ? 0 : value[axis] ?? 0; }
   stockSignal(): string { return String(this.selectedNode?.metadata['ai_signal'] ?? 'IGNORE'); }
-
-  stockAction(): string {
-    switch (this.stockSignal()) {
-      case 'BUY': return 'CONSIDER BUY';
-      case 'SELL': return 'CONSIDER SELL / REDUCE';
-      default: return 'NO TRADE / WAIT';
-    }
-  }
-
-  stockActionGuidance(): string {
-    switch (this.stockSignal()) {
-      case 'BUY': return 'Positive news impact detected. Wait for price, liquidity and risk-rule confirmation before entering.';
-      case 'SELL': return 'Negative news impact detected. Consider reducing or avoiding the stock after confirming price action and risk rules.';
-      default: return 'The AI does not see enough actionable edge from this news. Avoid forcing a trade and wait for stronger evidence.';
-    }
-  }
-
+  stockAction(): string { switch (this.stockSignal()) { case 'BUY': return 'CONSIDER BUY'; case 'SELL': return 'CONSIDER SELL / REDUCE'; default: return 'NO TRADE / WAIT'; } }
+  stockActionGuidance(): string { switch (this.stockSignal()) { case 'BUY': return 'Positive news impact detected. Wait for price, liquidity and risk-rule confirmation before entering.'; case 'SELL': return 'Negative news impact detected. Consider reducing or avoiding the stock after confirming price action and risk rules.'; default: return 'The AI does not see enough actionable edge from this news. Avoid forcing a trade and wait for stronger evidence.'; } }
   confidencePercent(): number { return Math.round(Number(this.selectedNode?.metadata['ai_confidence'] ?? 0) * 100); }
   entityConfidencePercent(): number { return Math.round(Number(this.selectedNode?.metadata['entity_confidence'] ?? 0) * 100); }
   selectNode(node: BrainNode): void { this.selectedNode = node; this.cdr.markForCheck(); }
