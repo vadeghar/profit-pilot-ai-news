@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 
 from app.config import settings
-from app.domain.models import AiDecision, MarketBrainSnapshot, MarketPhase, NewsEvent, PaperOrder, PositionSnapshot, TradeIntent
+from app.domain.models import AiDecision, MarketBrainSnapshot, MarketPhase, NewsEvent, PaperExecutionResult, PaperOrder, PositionSnapshot, TradeIntent
 from app.providers.stub_llm import StubLlmProvider
 from app.providers.stub_market_data import StubMarketDataProvider
 from app.providers.stub_news import StubNewsProvider
@@ -95,13 +95,12 @@ async def create_trade_intent(
     return await risk_engine.evaluate(event, decisions[0], quantity=quantity, market_phase=market_phase)
 
 
-@app.post("/api/v1/trade-intents/execute", response_model=TradeIntent)
-async def execute_trade_intent(intent: TradeIntent) -> TradeIntent:
+@app.post("/api/v1/trade-intents/execute", response_model=PaperExecutionResult)
+async def execute_trade_intent(intent: TradeIntent) -> PaperExecutionResult:
     try:
-        paper_trading.execute(intent)
+        return paper_trading.execute(intent)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return intent
 
 
 @app.get("/api/v1/paper/orders", response_model=list[PaperOrder])
