@@ -4,6 +4,14 @@ from app.domain.models import AiDecision, NewsEvent, PaperOrder, Position
 from app.storage.database import SqliteDatabase
 
 
+def _sqlite_utc_to_iso(value: str | None) -> str | None:
+    if not value:
+        return value
+    if value.endswith("Z") or "+" in value or value.endswith("+00:00"):
+        return value
+    return value.replace(" ", "T") + "Z"
+
+
 class NewsEventRepository:
     def __init__(self, database: SqliteDatabase) -> None:
         self.database = database
@@ -78,7 +86,7 @@ class AiDecisionRepository:
     def list_for_event(self, event_id: str) -> list[AiDecision]:
         with self.database.connect() as connection:
             rows = connection.execute(
-                """SELECT signal, confidence, reasoning, prompt_version, model
+                """SELECT signal, confidence, reasoning, prompt_version, model, created_at
                    FROM ai_decisions WHERE news_event_id = ? ORDER BY id DESC""",
                 (event_id,),
             ).fetchall()
@@ -86,6 +94,7 @@ class AiDecisionRepository:
             AiDecision(
                 signal=row["signal"], confidence=row["confidence"], reasoning=row["reasoning"],
                 prompt_version=row["prompt_version"], model=row["model"],
+                created_at=_sqlite_utc_to_iso(row["created_at"]),
             )
             for row in rows
         ]

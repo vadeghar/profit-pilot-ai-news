@@ -154,7 +154,36 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private formatTime(value: string): string {
-    return new Date(value).toLocaleTimeString('en-IN', { hour12: false });
+    return new Date(value).toLocaleTimeString('en-IN', { hour12: false, timeZone: 'Asia/Kolkata' });
+  }
+
+  formatMetadataKey(key: string): string {
+    const labels: Record<string, string> = {
+      published_at: 'News published (IST)',
+      analyzed_at: 'AI analyzed (IST)',
+      ai_analyzed_at: 'AI analyzed (IST)',
+      created_at: 'Created (IST)',
+    };
+    return labels[key] ?? key;
+  }
+
+  formatMetadataValue(key: string, value: string | number | boolean): string | number | boolean {
+    if (typeof value === 'string' && (key.endsWith('_at') || key === 'published_at') && value) {
+      const date = new Date(value);
+      if (!Number.isNaN(date.getTime())) {
+        return new Intl.DateTimeFormat('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        }).format(date);
+      }
+    }
+    return value;
   }
 
   private renderGraph(): void {

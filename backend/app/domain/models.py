@@ -30,6 +30,7 @@ class AiDecision(BaseModel):
     reasoning: str
     prompt_version: str
     model: str
+    created_at: str | None = None
 
 
 class TradeIntent(BaseModel):
