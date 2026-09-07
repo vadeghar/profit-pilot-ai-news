@@ -85,13 +85,27 @@ class MarketBrainService:
             for symbol in event.symbols:
                 match = matches_by_symbol.get(symbol)
                 stock_id = f"stock:{symbol}"
-                stock_metadata: dict[str, str | float | int | bool] = {"symbol": symbol}
+                stock_metadata: dict[str, str | float | int | bool] = {
+                    "symbol": symbol,
+                    "ai_signal": decision.signal.value,
+                    "ai_confidence": decision.confidence,
+                    "ai_reasoning": decision.reasoning,
+                    "latest_news": event.title,
+                    "news_source": event.source,
+                    "news_materiality": event.materiality,
+                    "ai_model": decision.model,
+                }
                 if match is not None:
                     stock_metadata.update(
                         {
                             "canonical_name": match.canonical_name,
                             "matched_alias": match.matched_alias,
                             "entity_confidence": match.confidence,
+                            "entity_match_type": (
+                                "exact symbol/company name"
+                                if match.confidence == 1.0
+                                else "known alias"
+                            ),
                         }
                     )
                 nodes.append(
@@ -146,7 +160,11 @@ class MarketBrainService:
 
     @staticmethod
     def _dedupe_nodes(nodes: list[MarketBrainNode]) -> list[MarketBrainNode]:
-        return list({node.id: node for node in nodes}.values())
+        deduped: dict[str, MarketBrainNode] = {}
+        for node in nodes:
+            if node.id not in deduped:
+                deduped[node.id] = node
+        return list(deduped.values())
 
     @staticmethod
     def _dedupe_edges(edges: list[MarketBrainEdge]) -> list[MarketBrainEdge]:
