@@ -14,6 +14,7 @@ from app.services.automated_news_loop import AutomatedNewsLoop
 from app.services.entity_catalog import resolver
 from app.services.event_processing import EventProcessingService
 from app.services.market_brain import MarketBrainService
+from app.services.market_phase import current_market_phase
 from app.services.news_ingestion import NewsIngestionService
 from app.services.paper_trading import PaperTradingService
 from app.services.portfolio import PortfolioService
@@ -82,10 +83,7 @@ async def _broadcast_brain() -> None:
 
 
 def _market_phase() -> MarketPhase:
-    # Market-phase scheduling is intentionally kept behind this boundary; the
-    # first MVP loop uses MARKET_HOURS and can be replaced with an exchange
-    # calendar without changing the ingestion/processing pipeline.
-    return MarketPhase.MARKET_HOURS
+    return current_market_phase()
 
 
 news_loop = AutomatedNewsLoop(
