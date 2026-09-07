@@ -5,48 +5,54 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.domain.models import AiDecision, MarketBrainSnapshot, MarketPhase, NewsEvent, PaperExecutionResult, PaperOrder, PositionSnapshot, ProcessingResult, TradeIntent
-from app.providers.angel_one import AngelOneMarketDataProvider
 from app.providers.deepseek_llm import DeepSeekLlmProvider
-from app.providers.fallback_llm import FallbackLlmProvider
 from app.providers.gemini_llm import GeminiLlmProvider
 from app.providers.groq_llm import GroqLlmProvider
-from app.providers.rss_news import RssNewsProvider
-from app.providers.stub_llm import StubLlmProvider
-from app.providers.stub_market_data import StubMarketDataProvider
-from app.providers.stub_news import StubNewsProvider
+from app.providers.market_data import SmartApiMarketDataProvider, StubMarketDataProvider
+from app.providers.news import GoogleNewsRssProvider, StubNewsProvider
+from app.providers.fallback_llm import FallbackLlmProvider
 from app.services.ai_analysis import AiAnalysisService
 from app.services.automated_news_loop import AutomatedNewsLoop
 from app.services.entity_catalog import resolver
-from app.services.event_processing import EventProcessingService
 from app.services.market_brain import MarketBrainService
 from app.services.market_knowledge import MarketKnowledgeService
 from app.services.market_phase import current_market_phase
 from app.services.news_ingestion import NewsIngestionService
-from app.services.paper_trading import PaperTradingService
 from app.services.portfolio import PortfolioService
-from app.services.risk_engine import RiskConfig, RiskEngine
+from app.services.risk_engine import RiskEngine
 from app.services.source_reliability import SourceReliabilityRegistry
-from app.storage import AiDecisionRepository, AiQueueRepository, MarketKnowledgeRepository, NewsEventRepository, PaperTradingRepository, SqliteDatabase
+from app.services.trade_intent import TradeIntentService
+from app.services.processing import EventProcessingService
+from app.storage import AiDecisionRepository, AiQueueRepository, Database, MarketKnowledgeRepository, NewsEventRepository, PaperTradingRepository
+from app.websocket.manager import ConnectionManager
 
 
-database = SqliteDatabase(settings.database_url)
+database = Database(settings.database_url)
 news_repository = NewsEventRepository(database)
 decision_repository = AiDecisionRepository(database)
+paper_repository = PaperTradingRepository(database)
 ai_queue_repository = AiQueueRepository(database)
-knowledge_repository = MarketKnowledgeRepository(database)
+market_knowledge_repository = MarketKnowledgeRepository(database)
+market_knowledge = MarketKnowledgeService(market_knowledge_repository, news_repository)
 source_reliability = SourceReliabilityRegistry()
-knowledge_service = MarketKnowledgeService(knowledge_repository)
 
-if settings.news_provider.lower() == "rss":
-    news_provider = RssNewsProvider(settings.news_feeds, resolver=resolver, symbol_keywords=settings.news_symbol_keywords, timeout_seconds=settings.news_fetch_timeout_seconds, max_items_per_feed=settings.news_max_items_per_feed)
+
+if settings.news_provider.lower() == "google_rss":
+    news_provider = GoogleNewsRssProvider(settings.google_news_rss_urls)
 else:
     news_provider = StubNewsProvider()
+news_ingestion = NewsIngestionService(news_provider, news_repository)
+
+if settings.market_data_provider.lower() == "smartapi":
+    market_data_provider = SmartApiMarketDataProvider(settings)
+else:
+    market_data_provider = StubMarketDataProvider()
+portfolio = PortfolioService(paper_repository, market_data_provider)
 
 llm_provider_name = settings.llm_provider.lower()
 if llm_provider_name == "groq":
     if not settings.groq_api_key:
         raise RuntimeError("LLM_PROVIDER=groq requires GROQ_API_KEY")
-
     llm_provider = GroqLlmProvider(
         api_key=settings.groq_api_key,
         model=settings.groq_model,
@@ -57,15 +63,11 @@ if llm_provider_name == "groq":
 elif llm_provider_name == "gemini":
     if not settings.gemini_api_key:
         raise RuntimeError("LLM_PROVIDER=gemini requires GEMINI_API_KEY")
-
     primary_llm = GeminiLlmProvider(
         api_key=settings.gemini_api_key,
         model=settings.gemini_model,
         timeout_seconds=settings.gemini_timeout_seconds,
-        max_retries=settings.gemini_max_retries,
-        retry_base_seconds=settings.gemini_retry_base_seconds,
     )
-
     fallback_llm = None
     if settings.deepseek_api_key:
         fallback_llm = DeepSeekLlmProvider(
@@ -73,105 +75,61 @@ elif llm_provider_name == "gemini":
             model=settings.deepseek_model,
             timeout_seconds=settings.deepseek_timeout_seconds,
         )
-
     llm_provider = FallbackLlmProvider(primary_llm, fallback_llm)
-elif llm_provider_name == "deepseek":
-    if not settings.deepseek_api_key:
-        raise RuntimeError("LLM_PROVIDER=deepseek requires DEEPSEEK_API_KEY")
-    llm_provider = DeepSeekLlmProvider(
-        api_key=settings.deepseek_api_key,
-        model=settings.deepseek_model,
-        timeout_seconds=settings.deepseek_timeout_seconds,
-    )
 else:
-    llm_provider = StubLlmProvider()
+    raise RuntimeError(f"Unsupported LLM_PROVIDER: {settings.llm_provider}")
 
-if settings.market_data_provider.lower() == "angel_one":
-    market_data_provider = AngelOneMarketDataProvider(api_key=settings.angel_api_key, client_code=settings.angel_client_code, password=settings.angel_password, totp_secret=settings.angel_totp_secret, symbol_tokens=settings.angel_symbol_tokens, exchange=settings.angel_exchange)
-else:
-    market_data_provider = StubMarketDataProvider()
-
-news_ingestion = NewsIngestionService(news_provider, news_repository)
 ai_analysis = AiAnalysisService(
     news_repository,
     decision_repository,
     llm_provider,
-    entity_resolver=resolver,
-    source_reliability=source_reliability,
-    knowledge_service=knowledge_service,
+    market_knowledge=market_knowledge,
 )
-risk_engine = RiskEngine(market_data_provider, RiskConfig(max_order_notional=settings.max_order_notional, max_order_quantity=settings.max_order_quantity))
-paper_trading = PaperTradingService(paper_repository := PaperTradingRepository(database))
-portfolio = PortfolioService(paper_repository, market_data_provider)
-event_processing = EventProcessingService(news_repository, ai_analysis, risk_engine, paper_trading, paper_repository)
-market_brain = MarketBrainService(news_repository, decision_repository, paper_repository, portfolio)
+risk_engine = RiskEngine()
+event_processing = EventProcessingService(
+    news_repository,
+    ai_analysis,
+    risk_engine,
+    paper_repository,
+)
+trade_intent = TradeIntentService(news_repository, ai_analysis, risk_engine)
+market_brain = MarketBrainService(news_repository, decision_repository, paper_repository, portfolio, source_reliability)
+brain_connections = ConnectionManager()
 
 
-class MarketBrainConnectionManager:
-    def __init__(self) -> None:
-        self.connections: set[WebSocket] = set()
-
-    async def connect(self, websocket: WebSocket) -> None:
-        await websocket.accept()
-        self.connections.add(websocket)
-
-    def disconnect(self, websocket: WebSocket) -> None:
-        self.connections.discard(websocket)
-
-    async def broadcast(self) -> None:
-        if not self.connections:
-            return
-        payload = (await market_brain.snapshot()).model_dump(mode="json")
-        stale: list[WebSocket] = []
-        for websocket in self.connections:
-            try:
-                await websocket.send_json(payload)
-            except Exception:
-                stale.append(websocket)
-        for websocket in stale:
-            self.disconnect(websocket)
-
-
-brain_connections = MarketBrainConnectionManager()
-
-
-async def _broadcast_brain() -> None:
-    await brain_connections.broadcast()
-
-
-def _market_phase() -> MarketPhase:
+def current_phase() -> MarketPhase:
     return current_market_phase()
 
 
 news_loop = AutomatedNewsLoop(
-    news_ingestion,
-    event_processing,
+    ingestion=news_ingestion,
+    processing=event_processing,
     queue_repository=ai_queue_repository,
-    interval_seconds=settings.news_poll_interval_seconds,
+    phase_provider=current_phase,
     quantity=settings.news_trade_quantity,
-    phase_provider=_market_phase,
-    on_update=_broadcast_brain,
+    poll_interval_seconds=settings.news_poll_interval_seconds,
     post_market_ai_interval_seconds=settings.post_market_ai_interval_seconds,
     pre_market_ai_interval_seconds=settings.pre_market_ai_interval_seconds,
     market_hours_ai_interval_seconds=settings.market_hours_ai_interval_seconds,
     max_ai_events_per_cycle=settings.max_ai_events_per_cycle,
+    on_update=brain_connections.broadcast,
 )
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_: FastAPI):
     database.initialize()
-    if settings.news_provider.lower() == "rss" and settings.news_feeds:
-        news_loop.start()
+    news_loop.start()
     yield
     await news_loop.stop()
 
 
-app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
+app = FastAPI(title=settings.app_name, version="1.0.0", lifespan=lifespan)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins,
-    allow_origin_regex=settings.cors_origin_regex,
+    allow_origins=settings.cors_origins,
+    allow_origin_regex=settings.cors_origin_regex or None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -270,7 +228,7 @@ async def create_trade_intent(event_id: str, quantity: int = 1, market_phase: Ma
 @app.post("/api/v1/trade-intents/execute", response_model=PaperExecutionResult)
 async def execute_trade_intent(intent: TradeIntent) -> PaperExecutionResult:
     try:
-        result = paper_trading.execute(intent)
+        result = paper_repository.execute(intent)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     await brain_connections.broadcast()
@@ -290,16 +248,22 @@ async def list_paper_positions() -> list[PositionSnapshot]:
 
 
 @app.get("/api/v1/market-brain/snapshot", response_model=MarketBrainSnapshot)
-async def market_brain_snapshot() -> MarketBrainSnapshot:
-    return await market_brain.snapshot()
+async def market_brain_snapshot(hours: int | None = 6) -> MarketBrainSnapshot:
+    if hours is not None and (hours < 1 or hours > 24 * 365):
+        raise HTTPException(status_code=400, detail="hours must be between 1 and 8760, or omitted for the default six-hour window.")
+    return await market_brain.snapshot(hours=hours)
 
 
 @app.websocket("/ws/market-brain")
 async def market_brain_socket(websocket: WebSocket) -> None:
     await brain_connections.connect(websocket)
     try:
-        await websocket.send_json((await market_brain.snapshot()).model_dump(mode="json"))
+        raw_hours = websocket.query_params.get("hours", "6")
+        hours: int | None = None if raw_hours.lower() == "all" else int(raw_hours)
+        if hours is not None and (hours < 1 or hours > 24 * 365):
+            hours = 6
+        await websocket.send_json((await market_brain.snapshot(hours=hours)).model_dump(mode="json"))
         while True:
             await websocket.receive_text()
-    except WebSocketDisconnect:
+    except (ValueError, WebSocketDisconnect):
         brain_connections.disconnect(websocket)
