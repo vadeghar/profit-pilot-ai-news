@@ -219,6 +219,36 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     return value[axis] ?? 0;
   }
 
+  stockSignal(): string {
+    return String(this.selectedNode?.metadata['ai_signal'] ?? 'IGNORE');
+  }
+
+  stockAction(): string {
+    switch (this.stockSignal()) {
+      case 'BUY': return 'CONSIDER BUY';
+      case 'SELL': return 'CONSIDER SELL / REDUCE';
+      default: return 'NO TRADE / WAIT';
+    }
+  }
+
+  stockActionGuidance(): string {
+    switch (this.stockSignal()) {
+      case 'BUY': return 'Positive news impact detected. Wait for price, liquidity and risk-rule confirmation before entering.';
+      case 'SELL': return 'Negative news impact detected. Consider reducing or avoiding the stock after confirming price action and risk rules.';
+      default: return 'The AI does not see enough actionable edge from this news. Avoid forcing a trade and wait for stronger evidence.';
+    }
+  }
+
+  confidencePercent(): number {
+    const value = Number(this.selectedNode?.metadata['ai_confidence'] ?? 0);
+    return Math.round(value * 100);
+  }
+
+  entityConfidencePercent(): number {
+    const value = Number(this.selectedNode?.metadata['entity_confidence'] ?? 0);
+    return Math.round(value * 100);
+  }
+
   selectNode(node: BrainNode): void { this.selectedNode = node; this.cdr.markForCheck(); }
   closeInspector(): void { this.selectedNode = undefined; this.cdr.markForCheck(); }
 
