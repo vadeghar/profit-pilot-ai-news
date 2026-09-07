@@ -46,6 +46,14 @@ class EventProcessingService:
         else:
             decision = await self.decision_service.analyze(event_id)
 
+        if self.paper_repository.has_order_for_event(event_id):
+            return ProcessingResult(
+                status="ALREADY_EXECUTED",
+                event=event,
+                decision=decision,
+                reason="A paper order already exists for this news event.",
+            )
+
         intent: TradeIntent = await self.risk_engine.evaluate(
             event,
             decision,
@@ -60,15 +68,6 @@ class EventProcessingService:
                 decision=decision,
                 intent=intent,
                 reason=intent.reason,
-            )
-
-        if self.paper_repository.has_order_for_event(event_id):
-            return ProcessingResult(
-                status="ALREADY_EXECUTED",
-                event=event,
-                decision=decision,
-                intent=intent,
-                reason="A paper order already exists for this news event.",
             )
 
         execution: PaperExecutionResult = self.paper_trading.execute(intent)
