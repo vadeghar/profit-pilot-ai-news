@@ -3,10 +3,15 @@
     <div>
       <div class="eyebrow">PROFIT PILOT / MARKET INTELLIGENCE</div>
       <h1>Market Brain <span class="live-mark">●</span></h1>
-      <p class="subtitle">A living map of the last six hours — NEWS → AI → STOCKS</p>
+      <p class="subtitle">A living market-intelligence orbit — NEWS → AI → STOCK → TRADE → TOTAL PNL</p>
     </div>
     <div class="header-right">
-      <div class="window-chip"><span></span>{{ graphWindow }}</div>
+      <label class="window-picker" title="Choose the intelligence history window">
+        <span>HISTORY</span>
+        <select [value]="selectedWindowHours === null ? 'ALL' : selectedWindowHours" (change)="changeWindow($any($event.target).value)">
+          <option *ngFor="let option of windowOptions" [value]="option.hours === null ? 'ALL' : option.hours">{{ option.label }}</option>
+        </select>
+      </label>
       <div class="phase" [class.phase-live]="snapshot.phase === 'MARKET_HOURS'" [class.phase-closed]="snapshot.phase === 'POST_MARKET'">
         <i></i>{{ snapshot.phase.replace('_', ' ') }}
       </div>
@@ -25,11 +30,13 @@
       <span><i class="legend-news"></i> NEWS</span>
       <span><i class="legend-ai"></i> AI</span>
       <span><i class="legend-stock"></i> STOCK</span>
-      <em>Hover to wake the network · Drag to explore</em>
+      <span><i class="legend-trade"></i> TRADE</span>
+      <span><i class="legend-pnl"></i> TOTAL PNL</span>
+      <em>Hover to wake the network · Drag to explore · Click to inspect lineage</em>
     </div>
 
     <div class="orbit-caption">
-      <b>06H</b>
+      <b>{{ graphWindow.replace('LAST ', '') }}</b>
       <span>Rolling intelligence window</span>
     </div>
 
@@ -57,14 +64,26 @@
     <div class="empty" *ngIf="snapshot.nodes.length === 0">
       <div class="pulse"></div>
       <h2>Awaiting market intelligence</h2>
-      <p>The six-hour orbit is listening. News, AI decisions and stock relationships will materialize here.</p>
+      <p>The {{ graphWindow.toLowerCase() }} orbit is listening. News, AI decisions, stocks, trades and P&L relationships will materialize here.</p>
     </div>
-    <svg #brainCanvas class="brain-graph" *ngIf="snapshot.nodes.length > 0" aria-label="Six-hour Market Brain network visualization"></svg>
+    <svg #brainCanvas class="brain-graph" *ngIf="snapshot.nodes.length > 0" [attr.aria-label]="graphWindow + ' Market Brain network visualization'"></svg>
 
     <aside class="inspector" *ngIf="selectedNode">
-      <div class="inspector-head"><span>{{ selectedNode.kind }}</span><button (click)="closeInspector()" aria-label="Close">×</button></div>
+      <div class="inspector-head"><span>{{ selectedNode.kind === 'TOTAL_PNL' ? 'TOTAL PNL' : selectedNode.kind }}</span><button (click)="closeInspector()" aria-label="Close">×</button></div>
 
-      <ng-container *ngIf="selectedNode.kind === 'STOCK'; else genericInspector">
+      <div class="lineage-panel">
+        <div class="section-kicker">CONNECTED LINEAGE</div>
+        <div class="lineage-step" *ngFor="let item of selectedLineage(); let last = last">
+          <div class="lineage-dot" [class.lineage-pnl]="item.kind === 'TOTAL_PNL'" [class.lineage-trade]="item.kind === 'TRADE'" [class.lineage-stock]="item.kind === 'STOCK'" [class.lineage-ai]="item.kind === 'AI'" [class.lineage-news]="item.kind === 'NEWS'"></div>
+          <div class="lineage-copy">
+            <b>{{ item.kind === 'TOTAL_PNL' ? 'TOTAL PNL' : item.kind }}</b>
+            <strong>{{ item.label || 'No trades yet' }}</strong>
+            <small>{{ lineageTimestamp(item) }}</small>
+          </div>
+        </div>
+      </div>
+
+      <ng-container *ngIf="selectedNode.kind === 'STOCK'; else nonStockInspector">
         <h3>{{ selectedNode.label }}</h3>
         <section class="decision-card">
           <div class="decision-kicker">AI DECISION</div>
@@ -85,8 +104,18 @@
         </dl>
       </ng-container>
 
-      <ng-template #genericInspector>
-        <h3>{{ selectedNode.label }}</h3>
+      <ng-template #nonStockInspector>
+        <h3>{{ selectedNode.kind === 'TOTAL_PNL' ? 'Portfolio P&L' : selectedNode.label }}</h3>
+        <section class="pnl-card" *ngIf="selectedNode.kind === 'TOTAL_PNL'">
+          <span>TOTAL P&L</span>
+          <strong [class.pnl-loss]="Number(selectedNode.metadata['total_pnl'] ?? 0) < 0">₹ {{ selectedNode.metadata['total_pnl'] ?? '0.00' }}</strong>
+          <small>{{ selectedNode.metadata['trade_count'] ?? 0 }} trades · {{ selectedNode.metadata['status'] }}</small>
+        </section>
+        <section class="trade-card" *ngIf="selectedNode.kind === 'TRADE'">
+          <span>EXECUTED TRADE</span>
+          <strong>{{ selectedNode.label }}</strong>
+          <small>{{ lineageTimestamp(selectedNode) }}</small>
+        </section>
         <dl><ng-container *ngFor="let item of selectedNode.metadata | keyvalue"><dt>{{ formatMetadataKey(item.key) }}</dt><dd>{{ formatMetadataValue(item.key, item.value) }}</dd></ng-container></dl>
       </ng-template>
     </aside>
