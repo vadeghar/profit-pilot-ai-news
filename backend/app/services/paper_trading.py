@@ -31,23 +31,33 @@ class PaperTradingService:
             status="FILLED",
             created_at=now,
         )
-        self.repository.save_order(order)
-        self.repository.save_position(position)
+        self.repository.save_execution(order, position)
         return PaperExecutionResult(order=order, position=position)
 
     @staticmethod
     def _apply_fill(existing: Position | None, intent: TradeIntent) -> Position:
-        current = existing or Position(symbol=intent.symbol, quantity=0, average_price=0, realized_pnl=0)
+        current = existing or Position(
+            symbol=intent.symbol, quantity=0, average_price=0, realized_pnl=0
+        )
         signed_quantity = intent.quantity if intent.side == Signal.BUY else -intent.quantity
+        same_direction = (
+            current.quantity == 0
+            or (current.quantity > 0 and signed_quantity > 0)
+            or (current.quantity < 0 and signed_quantity < 0)
+        )
 
-        if current.quantity == 0 or (current.quantity > 0 and signed_quantity > 0) or (current.quantity < 0 and signed_quantity < 0):
+        if same_direction:
             new_quantity = current.quantity + signed_quantity
             total_cost = abs(current.quantity) * current.average_price + intent.quantity * intent.entry_price
             average_price = total_cost / abs(new_quantity) if new_quantity else 0
             return current.model_copy(update={"quantity": new_quantity, "average_price": average_price})
 
         closing_quantity = min(abs(current.quantity), intent.quantity)
-        pnl_per_share = intent.entry_price - current.average_price if current.quantity > 0 else current.average_price - intent.entry_price
+        pnl_per_share = (
+            intent.entry_price - current.average_price
+            if current.quantity > 0
+            else current.average_price - intent.entry_price
+        )
         realized_pnl = current.realized_pnl + closing_quantity * pnl_per_share
         new_quantity = current.quantity + signed_quantity
         if new_quantity == 0:
