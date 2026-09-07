@@ -15,6 +15,7 @@ from app.domain.models import (
     TradeIntent,
 )
 from app.providers.angel_one import AngelOneMarketDataProvider
+from app.providers.rss_news import RssNewsProvider
 from app.providers.stub_llm import StubLlmProvider
 from app.providers.stub_market_data import StubMarketDataProvider
 from app.providers.stub_news import StubNewsProvider
@@ -32,7 +33,17 @@ database = SqliteDatabase(settings.database_url)
 news_repository = NewsEventRepository(database)
 decision_repository = AiDecisionRepository(database)
 paper_repository = PaperTradingRepository(database)
-news_provider = StubNewsProvider()
+
+if settings.news_provider.lower() == "rss":
+    news_provider = RssNewsProvider(
+        settings.news_feeds,
+        symbol_keywords=settings.news_symbol_keywords,
+        timeout_seconds=settings.news_fetch_timeout_seconds,
+        max_items_per_feed=settings.news_max_items_per_feed,
+    )
+else:
+    news_provider = StubNewsProvider()
+
 llm_provider = StubLlmProvider()
 
 if settings.market_data_provider.lower() == "angel_one":
@@ -112,6 +123,7 @@ async def health() -> dict[str, str]:
         "environment": settings.environment,
         "database": "ok" if database.check() else "error",
         "market_data_provider": settings.market_data_provider,
+        "news_provider": settings.news_provider,
     }
 
 
