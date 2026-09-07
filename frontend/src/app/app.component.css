@@ -51,7 +51,23 @@ h1 { margin: 5px 0 0; font-size: 30px; letter-spacing: -.02em; }
 .inspector { position: absolute; z-index: 6; right: 20px; top: 70px; bottom: 170px; width: min(380px, calc(100% - 40px)); max-height: 58%; overflow: auto; padding: 18px; border: 1px solid #344155; border-radius: 16px; background: rgba(8,11,17,.96); box-shadow: 0 20px 60px rgba(0,0,0,.4); backdrop-filter: blur(12px); }
 .inspector-head { display: flex; justify-content: space-between; color: #7d8aa0; font-size: 10px; letter-spacing: .12em; }
 .inspector-head button { border: 0; background: transparent; cursor: pointer; font-size: 20px; }
-.inspector h3 { font-size: 16px; margin: 12px 0 18px; } dl { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px 12px; margin: 0; }
+.inspector h3 { font-size: 16px; margin: 12px 0 18px; }
+.stock-action { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -4px 0 12px; padding: 12px 14px; border: 1px solid #344155; border-radius: 10px; background: #111722; }
+.stock-action .action-label { color: #7d8aa0; font-size: 9px; letter-spacing: .14em; }
+.stock-action strong { font-size: 16px; letter-spacing: .08em; }
+.stock-action.action-buy { border-color: #286348; }
+.stock-action.action-buy strong { color: #7ee2ad; }
+.stock-action.action-sell { border-color: #70404a; }
+.stock-action.action-sell strong { color: #ed8da0; }
+.stock-action.action-ignore { border-color: #57456f; }
+.stock-action.action-ignore strong { color: #c19bea; }
+.decision-confidence { margin-bottom: 16px; color: #6f7c90; font-size: 10px; }
+.decision-confidence b { color: #b9c5d6; }
+.why-block, .context-block { margin: 0 0 16px; padding-top: 12px; border-top: 1px solid rgba(62,76,99,.45); }
+.section-label { margin-bottom: 7px; color: #718096; font-size: 9px; letter-spacing: .14em; }
+.why-block p, .context-block p { margin: 0; color: #c2cad6; font-size: 11px; line-height: 1.55; }
+.context-block small { display: block; margin-top: 7px; color: #697588; font-size: 9px; }
+dl { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px 12px; margin: 0; }
 dt { color: #667085; font-size: 11px; } dd { margin: 0; font-size: 11px; overflow-wrap: anywhere; }
 @media (max-width: 900px) { .telemetry { width: calc(100% - 40px); min-width: 0; bottom: 20px; } .system-panel { display: none; } }
 @media (max-width: 700px) { .shell { padding: 12px; } .brain-graph { min-height: 600px; } .subtitle { display: none; } .telemetry { bottom: 12px; left: 12px; width: calc(100% - 24px); } .canvas { margin-top: 12px; } }
