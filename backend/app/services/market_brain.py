@@ -91,6 +91,7 @@ class MarketBrainService:
                     "ai_confidence": decision.confidence,
                     "ai_reasoning": decision.reasoning,
                     "latest_news": event.title,
+                    "news_published_at": event.published_at,
                     "news_source": event.source,
                     "news_materiality": event.materiality,
                     "ai_model": decision.model,
