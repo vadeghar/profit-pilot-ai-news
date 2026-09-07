@@ -1,15 +1,8 @@
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from app.domain.models import PaperOrder, Position, Signal, TradeIntent
+from app.domain.models import PaperExecutionResult, PaperOrder, Position, Signal, TradeIntent
 from app.storage import PaperTradingRepository
-
-
-@dataclass(frozen=True)
-class PaperExecutionResult:
-    order: PaperOrder
-    position: Position
 
 
 class PaperTradingService:
@@ -21,6 +14,8 @@ class PaperTradingService:
             raise ValueError("Cannot execute a rejected trade intent.")
         if intent.side not in (Signal.BUY, Signal.SELL):
             raise ValueError("Only BUY and SELL trade intents can be executed.")
+        if self.repository.has_order_for_event(intent.event_id):
+            raise ValueError("A paper order already exists for this event.")
 
         existing = self.repository.get_position(intent.symbol)
         position = self._apply_fill(existing, intent)
