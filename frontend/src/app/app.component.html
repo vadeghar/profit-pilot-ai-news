@@ -49,21 +49,29 @@
 
     <div class="orbit-caption"><b>{{ graphWindow.replace('LAST ', '') }}</b><span>Rolling intelligence window</span></div>
 
-    <div class="telemetry" aria-live="polite">
-      <div class="telemetry-head"><span><b></b> INTELLIGENCE STREAM</span><span>{{ (health?.news_provider || 'CONNECTING') | uppercase }} / {{ (health?.llm_provider || 'UNKNOWN') | uppercase }}</span></div>
+    <details class="telemetry" open>
+      <summary class="card-toggle" aria-label="Toggle intelligence stream">
+        <span class="telemetry-head"><span><b></b> INTELLIGENCE STREAM</span><span>{{ (health?.news_provider || 'CONNECTING') | uppercase }} / {{ (health?.llm_provider || 'UNKNOWN') | uppercase }}</span></span>
+        <span class="toggle-chevron" aria-hidden="true">⌃</span>
+      </summary>
       <div class="stream-window"><div class="stream-line" *ngFor="let line of activity; let first = first" [class.stream-primary]="first">{{ line }}</div></div>
-    </div>
+    </details>
 
-    <div class="system-panel">
-      <div class="system-title">SYSTEM TELEMETRY</div>
-      <div class="metric"><span>NEWS ENGINE</span><b>{{ (health?.news_loop || 'CONNECTING') | uppercase }}</b></div>
-      <div class="metric"><span>MARKET DATA</span><b>{{ (health?.market_data_provider || 'UNKNOWN') | uppercase }}</b></div>
-      <div class="metric"><span>LAST SCAN</span><b>{{ health?.last_cycle_at ? (health.last_cycle_at | date:'dd MMM yyyy, HH:mm:ss':'+0530') : '--' }}</b></div>
-      <div class="metric"><span>NEW STORIES</span><b>{{ health?.last_cycle_new ?? 0 }}</b></div>
-      <div class="metric"><span>AI PROCESSED</span><b>{{ health?.last_cycle_processed ?? 0 }}</b></div>
-      <div class="metric"><span>AI QUEUE</span><b>{{ health?.ai_queue_pending ?? 0 }}</b></div>
-      <div class="metric" *ngIf="health?.last_cycle_error"><span>PIPELINE</span><b class="warning">WARNING</b></div>
-    </div>
+    <details class="system-panel" open>
+      <summary class="card-toggle" aria-label="Toggle system telemetry">
+        <span class="system-title">SYSTEM TELEMETRY</span>
+        <span class="toggle-chevron" aria-hidden="true">⌃</span>
+      </summary>
+      <div class="system-metrics">
+        <div class="metric"><span>NEWS ENGINE</span><b>{{ (health?.news_loop || 'CONNECTING') | uppercase }}</b></div>
+        <div class="metric"><span>MARKET DATA</span><b>{{ (health?.market_data_provider || 'UNKNOWN') | uppercase }}</b></div>
+        <div class="metric"><span>LAST SCAN</span><b>{{ health?.last_cycle_at ? (health.last_cycle_at | date:'dd MMM yyyy, HH:mm:ss':'+0530') : '--' }}</b></div>
+        <div class="metric"><span>NEW STORIES</span><b>{{ health?.last_cycle_new ?? 0 }}</b></div>
+        <div class="metric"><span>AI PROCESSED</span><b>{{ health?.last_cycle_processed ?? 0 }}</b></div>
+        <div class="metric"><span>AI QUEUE</span><b>{{ health?.ai_queue_pending ?? 0 }}</b></div>
+        <div class="metric" *ngIf="health?.last_cycle_error"><span>PIPELINE</span><b class="warning">WARNING</b></div>
+      </div>
+    </details>
 
     <div class="empty" *ngIf="snapshot.nodes.length === 0"><div class="pulse"></div><h2>Awaiting market intelligence</h2><p>The {{ graphWindow.toLowerCase() }} orbit is listening. News, AI decisions, stocks, trades and P&L relationships will materialize here.</p></div>
     <svg #brainCanvas class="brain-graph" *ngIf="snapshot.nodes.length > 0" [attr.aria-label]="graphWindow + ' Market Brain network visualization'"></svg>
