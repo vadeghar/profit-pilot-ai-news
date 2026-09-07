@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///backend/data/profit_pilot.db"
     redis_url: str = "redis://localhost:6379/0"
     llm_provider: str = "stub"
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-3.7-flash"
+    gemini_timeout_seconds: float = 30.0
     market_data_provider: str = "stub"
     news_provider: str = "stub"
     news_rss_feeds: str = ""
