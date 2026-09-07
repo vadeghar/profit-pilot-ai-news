@@ -4,17 +4,39 @@ AI-driven Indian market news intelligence and paper-trading platform.
 
 ## Current foundation
 
-The repository now contains the first runnable architecture slice:
+The repository contains the first end-to-end development architecture slice:
 
 - Python 3.12 + FastAPI backend
 - Pydantic/Pydantic Settings configuration and domain contracts
-- Provider interfaces for news, market data, LLM analysis, and paper execution
-- Stub LLM provider for deterministic development
-- REST health and Market Brain snapshot endpoints
-- WebSocket Market Brain event stream
-- Angular 22 frontend foundation with a live Market Brain shell
-- Docker Compose development infrastructure for PostgreSQL and Redis
+- Provider interfaces for news, market data, LLM analysis, and execution
+- Stub providers for deterministic development
+- SQLite persistence for news, AI decisions, paper orders, and positions
+- Deterministic trading rules and risk engine
+- Paper execution with realized and unrealized P&L
+- REST APIs for news, AI analysis, trade intents, paper orders, positions, and Market Brain
+- WebSocket Market Brain event stream with persisted graph data
+- Angular 22 frontend foundation with Market Brain pipeline lanes and node inspector
+- Docker Compose development infrastructure with SQLite persistence and Redis
 - pytest, Ruff, and mypy project configuration
+
+## Market Brain flow
+
+`News Sources → AI Processing → Stocks → Signals → Paper Trades → Positions/P&L`
+
+The Market Brain snapshot is built from persisted application state. Nodes expose metadata for source/time, AI reasoning/confidence, stock symbol, paper fill details, and position/P&L details. The WebSocket broadcasts a refreshed graph after ingestion, analysis, trade-intent creation, and paper execution.
+
+## Broker integration placeholder
+
+Angel One SmartAPI is reserved as a replaceable provider boundary. The repository currently contains:
+
+- `AngelOneMarketDataProvider` placeholder
+- `AngelOneBrokerProvider` placeholder
+- `ANGEL_API_KEY`
+- `ANGEL_CLIENT_CODE`
+- `ANGEL_PASSWORD`
+- `ANGEL_TOTP_SECRET`
+
+These settings are placeholders only. **No Angel One connection or live order is made.** Paper trading remains the only execution path until a dedicated broker adapter is implemented and explicitly enabled in a future phase.
 
 ## Planned flow
 
@@ -51,4 +73,4 @@ Infrastructure:
 docker compose up --build
 ```
 
-The initial Market Brain connects to `ws://localhost:8000/ws/market-brain` and currently receives an empty snapshot until the ingestion pipeline is implemented.
+The Market Brain connects to `ws://localhost:8000/ws/market-brain`. It receives the current persisted graph immediately and receives refreshed snapshots when the backend changes the news/AI/paper-trading state.
