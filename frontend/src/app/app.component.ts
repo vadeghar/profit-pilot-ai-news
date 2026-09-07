@@ -64,7 +64,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     this.socket.onmessage = (event: MessageEvent<string>) => {
       this.snapshot = JSON.parse(event.data) as BrainSnapshot;
       if (this.selectedNode) this.selectedNode = this.snapshot.nodes.find(n => n.id === this.selectedNode?.id);
-      this.renderGraph();
+      setTimeout(() => this.renderGraph());
     };
     this.socket.onerror = () => {
       this.socketState = 'ERROR';
