@@ -48,7 +48,6 @@ paper_trading = PaperTradingService(paper_repository)
 portfolio = PortfolioService(paper_repository, market_data_provider)
 event_processing = EventProcessingService(news_repository, ai_analysis, risk_engine, paper_trading, paper_repository)
 market_brain = MarketBrainService(news_repository, decision_repository, paper_repository, portfolio)
-source_reliability = SourceReliabilityService.default()
 
 
 class MarketBrainConnectionManager:
@@ -133,7 +132,7 @@ async def get_source_reliability(event_id: str) -> dict[str, str | float]:
     event = news_repository.get(event_id)
     if event is None:
         raise HTTPException(status_code=404, detail=f"News event not found: {event_id}")
-    result = source_reliability.score(event.source)
+    result = source_reliability.evaluate(event.source)
     return {"source": result.source, "score": result.score, "tier": result.tier}
 
 
