@@ -3,11 +3,21 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 
 from app.config import settings
-from app.domain.models import AiDecision, MarketBrainSnapshot, MarketPhase, NewsEvent, PaperExecutionResult, PaperOrder, PositionSnapshot, TradeIntent
+from app.domain.models import (
+    AiDecision,
+    MarketBrainSnapshot,
+    MarketPhase,
+    NewsEvent,
+    PaperExecutionResult,
+    PaperOrder,
+    PositionSnapshot,
+    TradeIntent,
+)
 from app.providers.stub_llm import StubLlmProvider
 from app.providers.stub_market_data import StubMarketDataProvider
 from app.providers.stub_news import StubNewsProvider
 from app.services.ai_analysis import AiAnalysisService
+from app.services.market_brain import MarketBrainService
 from app.services.news_ingestion import NewsIngestionService
 from app.services.paper_trading import PaperTradingService
 from app.services.portfolio import PortfolioService
@@ -33,6 +43,35 @@ risk_engine = RiskEngine(
 )
 paper_trading = PaperTradingService(paper_repository)
 portfolio = PortfolioService(paper_repository, market_data_provider)
+market_brain = MarketBrainService(news_repository, decision_repository, paper_repository, portfolio)
+
+
+class MarketBrainConnectionManager:
+    def __init__(self) -> None:
+        self.connections: set[WebSocket] = set()
+
+    async def connect(self, websocket: WebSocket) -> None:
+        await websocket.accept()
+        self.connections.add(websocket)
+
+    def disconnect(self, websocket: WebSocket) -> None:
+        self.connections.discard(websocket)
+
+    async def broadcast(self) -> None:
+        if not self.connections:
+            return
+        payload = (await market_brain.snapshot()).model_dump(mode="json")
+        stale: list[WebSocket] = []
+        for websocket in self.connections:
+            try:
+                await websocket.send_json(payload)
+            except Exception:
+                stale.append(websocket)
+        for websocket in stale:
+            self.disconnect(websocket)
+
+
+brain_connections = MarketBrainConnectionManager()
 
 
 @asynccontextmanager
@@ -55,7 +94,9 @@ async def health() -> dict[str, str]:
 
 @app.post("/api/v1/news/ingest", response_model=list[NewsEvent])
 async def ingest_news() -> list[NewsEvent]:
-    return await news_ingestion.ingest()
+    events = await news_ingestion.ingest()
+    await brain_connections.broadcast()
+    return events
 
 
 @app.get("/api/v1/news", response_model=list[NewsEvent])
@@ -68,9 +109,11 @@ async def list_news(limit: int = 50) -> list[NewsEvent]:
 @app.post("/api/v1/news/{event_id}/analyze", response_model=AiDecision)
 async def analyze_news(event_id: str) -> AiDecision:
     try:
-        return await ai_analysis.analyze(event_id)
+        decision = await ai_analysis.analyze(event_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    await brain_connections.broadcast()
+    return decision
 
 
 @app.get("/api/v1/news/{event_id}/decisions", response_model=list[AiDecision])
@@ -92,15 +135,19 @@ async def create_trade_intent(
     decisions = ai_analysis.decisions_for_event(event_id)
     if not decisions:
         raise HTTPException(status_code=409, detail="Analyze the news event before creating a trade intent.")
-    return await risk_engine.evaluate(event, decisions[0], quantity=quantity, market_phase=market_phase)
+    intent = await risk_engine.evaluate(event, decisions[0], quantity=quantity, market_phase=market_phase)
+    await brain_connections.broadcast()
+    return intent
 
 
 @app.post("/api/v1/trade-intents/execute", response_model=PaperExecutionResult)
 async def execute_trade_intent(intent: TradeIntent) -> PaperExecutionResult:
     try:
-        return paper_trading.execute(intent)
+        result = paper_trading.execute(intent)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    await brain_connections.broadcast()
+    return result
 
 
 @app.get("/api/v1/paper/orders", response_model=list[PaperOrder])
@@ -117,15 +164,15 @@ async def list_paper_positions() -> list[PositionSnapshot]:
 
 @app.get("/api/v1/market-brain/snapshot", response_model=MarketBrainSnapshot)
 async def market_brain_snapshot() -> MarketBrainSnapshot:
-    return MarketBrainSnapshot.empty()
+    return await market_brain.snapshot()
 
 
 @app.websocket("/ws/market-brain")
 async def market_brain_socket(websocket: WebSocket) -> None:
-    await websocket.accept()
+    await brain_connections.connect(websocket)
     try:
-        await websocket.send_json(MarketBrainSnapshot.empty().model_dump(mode="json"))
+        await websocket.send_json((await market_brain.snapshot()).model_dump(mode="json"))
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        return
+        brain_connections.disconnect(websocket)
