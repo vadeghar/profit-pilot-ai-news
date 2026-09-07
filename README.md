@@ -13,30 +13,44 @@ The repository contains the first end-to-end development architecture slice:
 - SQLite persistence for news, AI decisions, paper orders, and positions
 - Deterministic trading rules and risk engine
 - Paper execution with realized and unrealized P&L
-- REST APIs for news, AI analysis, trade intents, paper orders, positions, and Market Brain
+- Automated event-processing orchestration from news event through paper execution
+- REST APIs for news, AI analysis, automated processing, trade intents, paper orders, positions, and Market Brain
 - WebSocket Market Brain event stream with persisted graph data
 - Angular 22 frontend foundation with Market Brain pipeline lanes and node inspector
 - Docker Compose development infrastructure with SQLite persistence and Redis
 - pytest, Ruff, and mypy project configuration
 
+## Automated event processing
+
+A news event can now be processed through one API call:
+
+`News Event → AI Analysis → Deterministic Trading Rules → Risk Engine → Paper Trade → Position/P&L`
+
+Use `POST /api/v1/news/{event_id}/process` with optional `quantity` and `market_phase`. If an AI decision does not exist, the service creates one first. The same latest persisted decision is then passed through deterministic rules and risk checks. Only an approved intent reaches `PaperTradingService`.
+
+Processing is idempotent at the news-event level: if a paper order already exists for the event, the service returns `ALREADY_EXECUTED` instead of creating another paper order.
+
+The individual analyze, trade-intent, and execute endpoints remain available for debugging and controlled step-by-step workflows.
+
 ## Market Brain flow
 
 `News Sources → AI Processing → Stocks → Signals → Paper Trades → Positions/P&L`
 
-The Market Brain snapshot is built from persisted application state. Nodes expose metadata for source/time, AI reasoning/confidence, stock symbol, paper fill details, and position/P&L details. The WebSocket broadcasts a refreshed graph after ingestion, analysis, trade-intent creation, and paper execution.
+The Market Brain snapshot is built from persisted application state. Nodes expose metadata for source/time, AI reasoning/confidence, stock symbol, paper fill details, and position/P&L details. The WebSocket broadcasts a refreshed graph after ingestion, analysis, automated processing, trade-intent creation, and paper execution.
 
 ## Broker integration placeholder
 
 Angel One SmartAPI is reserved as a replaceable provider boundary. The repository currently contains:
 
-- `AngelOneMarketDataProvider` placeholder
-- `AngelOneBrokerProvider` placeholder
+- `AngelOneMarketDataProvider` read-only market-data adapter
+- `AngelOneBrokerProvider` disabled execution boundary
 - `ANGEL_API_KEY`
 - `ANGEL_CLIENT_CODE`
 - `ANGEL_PASSWORD`
 - `ANGEL_TOTP_SECRET`
+- `ANGEL_SYMBOL_TOKENS_JSON`
 
-These settings are placeholders only. **No Angel One connection or live order is made.** Paper trading remains the only execution path until a dedicated broker adapter is implemented and explicitly enabled in a future phase.
+These settings are placeholders only and remain empty in `.env.example`. **No Angel One order is made.** Paper trading remains the only execution path.
 
 ## Planned flow
 
