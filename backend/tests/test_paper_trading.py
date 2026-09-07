@@ -2,14 +2,14 @@ from pathlib import Path
 
 import pytest
 
-from app.domain.models import Signal, TradeIntent
+from app.domain.models import NewsEvent, Signal, TradeIntent
 from app.services.paper_trading import PaperTradingService
 from app.storage import PaperTradingRepository, SqliteDatabase
 
 
-def intent(side: Signal = Signal.BUY, quantity: int = 10, price: float = 1_500.0) -> TradeIntent:
+def intent(event_id: str = "event-1", side: Signal = Signal.BUY, quantity: int = 10, price: float = 1_500.0) -> TradeIntent:
     return TradeIntent(
-        event_id="event-1",
+        event_id=event_id,
         symbol="RELIANCE",
         side=side,
         quantity=quantity,
@@ -24,6 +24,10 @@ def intent(side: Signal = Signal.BUY, quantity: int = 10, price: float = 1_500.0
 def service(tmp_path: Path) -> PaperTradingService:
     database = SqliteDatabase(f"sqlite:///{tmp_path / 'paper.db'}")
     database.initialize()
+    database.connect().execute(
+        "INSERT INTO news_events (id, title, source, published_at, symbols_json, materiality) VALUES (?, ?, ?, ?, ?, ?)",
+        ("event-1", "Test event", "test", "2026-09-07T09:00:00+00:00", '["RELIANCE"]', 0.8),
+    )
     return PaperTradingService(PaperTradingRepository(database))
 
 
@@ -54,3 +58,11 @@ def test_rejected_intent_cannot_execute(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="rejected trade intent"):
         trading.execute(rejected)
+
+
+def test_duplicate_event_cannot_execute_twice(tmp_path: Path) -> None:
+    trading = service(tmp_path)
+    trading.execute(intent())
+
+    with pytest.raises(ValueError, match="already exists"):
+        trading.execute(intent())
