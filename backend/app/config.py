@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     groq_api_key: str | None = None
     groq_model: str = "openai/gpt-oss-120b"
     groq_timeout_seconds: float = 30.0
-    groq_max_retries: int = 3
+    groq_max_retries: int = 1
     groq_retry_base_seconds: float = 1.0
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.7-flash"
