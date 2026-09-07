@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from app.domain.models import MarketBrainEdge, MarketBrainNode, MarketBrainSnapshot, MarketPhase
 from app.services.entity_catalog import resolver
 from app.services.market_phase import current_market_phase
@@ -7,7 +9,7 @@ from app.storage import AiDecisionRepository, NewsEventRepository, PaperTradingR
 
 
 class MarketBrainService:
-    """Build the UI graph from persisted news, AI decisions, paper trades and P&L."""
+    """Build the UI graph from recent persisted news, AI decisions, paper trades and P&L."""
 
     def __init__(
         self,
@@ -28,9 +30,12 @@ class MarketBrainService:
         *,
         phase: MarketPhase | None = None,
         limit: int = 50,
+        hours: int = 6,
     ) -> MarketBrainSnapshot:
         actual_phase = phase or current_market_phase()
         events = self.news_repository.list_recent(limit)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, hours))
+        events = [event for event in events if self._within_window(event.published_at, cutoff)]
         orders = self.paper_repository.list_orders(limit)
         orders_by_event = {order.event_id: order for order in orders}
         positions = {position.symbol: position for position in await self.portfolio.snapshots()}
@@ -160,6 +165,16 @@ class MarketBrainService:
                         edges.append(MarketBrainEdge(source=trade_id, target=position_id, relation="UPDATES"))
 
         return MarketBrainSnapshot(phase=actual_phase, nodes=self._dedupe_nodes(nodes), edges=self._dedupe_edges(edges))
+
+    @staticmethod
+    def _within_window(value: str, cutoff: datetime) -> bool:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc) >= cutoff
+        except ValueError:
+            return False
 
     @staticmethod
     def _dedupe_nodes(nodes: list[MarketBrainNode]) -> list[MarketBrainNode]:
