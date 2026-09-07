@@ -1,3 +1,120 @@
-<main>
-  <!-- existing file content unchanged except NG8102-safe fallback expressions -->
+<style>
+  .window-picker { display:flex; align-items:center; gap:8px; padding:6px 8px 6px 12px; border:1px solid #263041; border-radius:999px; background:rgba(10,14,21,.82); color:#718198; font:9px "SFMono-Regular",Consolas,monospace; letter-spacing:.1em; }
+  .window-picker select { appearance:none; border:0; outline:0; padding:5px 22px 5px 7px; border-radius:999px; background:#111827; color:#d9e3ef; font:600 9px "SFMono-Regular",Consolas,monospace; letter-spacing:.08em; cursor:pointer; }
+  .legend-trade { background:#d8a34f; box-shadow:0 0 8px rgba(216,163,79,.7); }
+  .legend-pnl { background:#61d89b; box-shadow:0 0 8px rgba(97,216,155,.7); }
+  .lineage-panel { margin:0 0 15px; padding:12px 13px; border:1px solid rgba(62,76,99,.55); border-radius:12px; background:linear-gradient(180deg,rgba(15,22,33,.8),rgba(8,11,17,.55)); }
+  .lineage-step { position:relative; display:grid; grid-template-columns:14px 1fr; gap:9px; padding:9px 0; }
+  .lineage-step:not(:last-child)::after { content:''; position:absolute; left:6px; top:23px; bottom:-9px; width:1px; background:linear-gradient(#344155,transparent); }
+  .lineage-dot { width:9px; height:9px; margin-top:3px; border-radius:50%; box-shadow:0 0 9px currentColor; }
+  .lineage-news { color:#4f91d9; background:#4f91d9; }.lineage-ai { color:#a873df; background:#a873df; }.lineage-stock { color:#5bc39c; background:#5bc39c; }.lineage-trade { color:#d8a34f; background:#d8a34f; }.lineage-pnl { color:#61d89b; background:#61d89b; }
+  .lineage-copy { display:grid; gap:2px; min-width:0; }.lineage-copy b { color:#6f8095; font:8px "SFMono-Regular",Consolas,monospace; letter-spacing:.12em; }.lineage-copy strong { color:#dbe4f0; font-size:10px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.lineage-copy small { color:#58677b; font:8px "SFMono-Regular",Consolas,monospace; }
+  .pnl-card,.trade-card { margin:0 0 14px; padding:15px; border-radius:13px; border:1px solid rgba(97,216,155,.25); background:linear-gradient(145deg,rgba(22,63,48,.38),rgba(8,12,18,.4)); display:grid; gap:6px; }.trade-card { border-color:rgba(216,163,79,.25); background:linear-gradient(145deg,rgba(65,48,20,.35),rgba(8,12,18,.4)); }
+  .pnl-card span,.trade-card span { color:#6f8095; font:8px "SFMono-Regular",Consolas,monospace; letter-spacing:.16em; }.pnl-card strong { color:#72d7a4; font-size:24px; letter-spacing:-.02em; }.pnl-card strong.pnl-loss { color:#e47d8e; }.pnl-card small,.trade-card small { color:#738198; font:9px "SFMono-Regular",Consolas,monospace; }.trade-card strong { color:#e3bd6c; font-size:16px; }
+
+  /* Collapsible bottom cards: same footprint when open, compact footprint when closed. */
+  .telemetry, .system-panel { overflow:hidden !important; transition:height .22s ease, padding .22s ease; }
+  .telemetry { height:178px !important; }
+  .system-panel { height:178px !important; }
+  .telemetry:not([open]), .system-panel:not([open]) { height:52px !important; }
+  .card-toggle { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; cursor:pointer; list-style:none; outline:none; }
+  .card-toggle::-webkit-details-marker { display:none; }
+  .card-toggle:focus-visible { border-radius:8px; box-shadow:0 0 0 2px rgba(115,166,255,.32); }
+  .telemetry .card-toggle { min-height:28px; }
+  .system-panel .card-toggle { min-height:24px; padding-bottom:10px; border-bottom:1px solid rgba(62,76,99,.45); }
+  .system-panel .system-title { padding:0; margin:0; border:0; }
+  .toggle-chevron { flex:0 0 auto; width:22px; height:22px; display:grid; place-items:center; border:1px solid rgba(76,94,119,.7); border-radius:50%; color:#8c9bb0; font:12px/1 Arial,sans-serif; transition:transform .22s ease, background .22s ease; }
+  details[open] .toggle-chevron { transform:rotate(0deg); background:rgba(78,101,132,.12); }
+  details:not([open]) .toggle-chevron { transform:rotate(180deg); }
+  .system-metrics { overflow:hidden; }
+  @media (max-width:700px) { .window-picker span { display:none; }.window-picker { padding-left:7px; }.window-picker select { max-width:118px; } }
+</style>
+
+<main class="shell">
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">PROFIT PILOT / MARKET INTELLIGENCE</div>
+      <h1>Market Brain <span class="live-mark">●</span></h1>
+      <p class="subtitle">A living market-intelligence orbit — NEWS → AI → STOCK → TRADE → TOTAL PNL</p>
+    </div>
+    <div class="header-right">
+      <label class="window-picker" title="Choose the intelligence history window">
+        <span>HISTORY</span>
+        <select [value]="selectedWindowHours === null ? 'ALL' : selectedWindowHours" (change)="changeWindow($any($event.target).value)">
+          <option *ngFor="let option of windowOptions" [value]="option.hours === null ? 'ALL' : option.hours">{{ option.label }}</option>
+        </select>
+      </label>
+      <div class="phase" [class.phase-live]="snapshot.phase === 'MARKET_HOURS'" [class.phase-closed]="snapshot.phase === 'POST_MARKET'">
+        <i></i>{{ snapshot.phase.replace('_', ' ') }}
+      </div>
+    </div>
+  </header>
+
+  <section class="canvas">
+    <div class="graph-header">
+      <div class="graph-title"><span class="signal-ring"></span> INTELLIGENCE ORBIT</div>
+      <span>{{ snapshot.nodes.length }} nodes</span>
+      <span>{{ snapshot.edges.length }} connections</span>
+      <span class="live"><i [class.offline-dot]="socketState !== 'LIVE'"></i> {{ socketState }}</span>
+    </div>
+
+    <div class="legend" aria-label="Graph legend">
+      <span><i class="legend-news"></i> NEWS</span><span><i class="legend-ai"></i> AI</span><span><i class="legend-stock"></i> STOCK</span><span><i class="legend-trade"></i> TRADE</span><span><i class="legend-pnl"></i> TOTAL PNL</span>
+      <em>Hover to wake the network · Drag to explore · Click to inspect lineage</em>
+    </div>
+
+    <div class="orbit-caption"><b>{{ graphWindow.replace('LAST ', '') }}</b><span>Rolling intelligence window</span></div>
+
+    <details class="telemetry" open>
+      <summary class="card-toggle" aria-label="Toggle intelligence stream">
+        <span class="telemetry-head"><span><b></b> INTELLIGENCE STREAM</span><span>{{ (health?.news_provider || 'CONNECTING') | uppercase }} / {{ (health?.llm_provider || 'UNKNOWN') | uppercase }}</span></span>
+        <span class="toggle-chevron" aria-hidden="true">⌃</span>
+      </summary>
+      <div class="stream-window"><div class="stream-line" *ngFor="let line of activity; let first = first" [class.stream-primary]="first">{{ line }}</div></div>
+    </details>
+
+    <details class="system-panel" open>
+      <summary class="card-toggle" aria-label="Toggle system telemetry">
+        <span class="system-title">SYSTEM TELEMETRY</span>
+        <span class="toggle-chevron" aria-hidden="true">⌃</span>
+      </summary>
+      <div class="system-metrics">
+        <div class="metric"><span>NEWS ENGINE</span><b>{{ (health?.news_loop || 'CONNECTING') | uppercase }}</b></div>
+        <div class="metric"><span>MARKET DATA</span><b>{{ (health?.market_data_provider || 'UNKNOWN') | uppercase }}</b></div>
+        <div class="metric"><span>LAST SCAN</span><b>{{ health?.last_cycle_at ? (health.last_cycle_at | date:'dd MMM yyyy, HH:mm:ss':'+0530') : '--' }}</b></div>
+        <div class="metric"><span>NEW STORIES</span><b>{{ health?.last_cycle_new ?? 0 }}</b></div>
+        <div class="metric"><span>AI PROCESSED</span><b>{{ health?.last_cycle_processed ?? 0 }}</b></div>
+        <div class="metric"><span>AI QUEUE</span><b>{{ health?.ai_queue_pending ?? 0 }}</b></div>
+        <div class="metric" *ngIf="health?.last_cycle_error"><span>PIPELINE</span><b class="warning">WARNING</b></div>
+      </div>
+    </details>
+
+    <div class="empty" *ngIf="snapshot.nodes.length === 0"><div class="pulse"></div><h2>Awaiting market intelligence</h2><p>The {{ graphWindow.toLowerCase() }} orbit is listening. News, AI decisions, stocks, trades and P&L relationships will materialize here.</p></div>
+    <svg #brainCanvas class="brain-graph" *ngIf="snapshot.nodes.length > 0" [attr.aria-label]="graphWindow + ' Market Brain network visualization'"></svg>
+
+    <aside class="inspector" *ngIf="selectedNode">
+      <div class="inspector-head"><span>{{ selectedNode.kind === 'TOTAL_PNL' ? 'TOTAL PNL' : selectedNode.kind }}</span><button (click)="closeInspector()" aria-label="Close">×</button></div>
+      <div class="lineage-panel">
+        <div class="section-kicker">CONNECTED LINEAGE</div>
+        <div class="lineage-step" *ngFor="let item of selectedLineage()">
+          <div class="lineage-dot" [class.lineage-pnl]="item.kind === 'TOTAL_PNL'" [class.lineage-trade]="item.kind === 'TRADE'" [class.lineage-stock]="item.kind === 'STOCK'" [class.lineage-ai]="item.kind === 'AI'" [class.lineage-news]="item.kind === 'NEWS'"></div>
+          <div class="lineage-copy"><b>{{ item.kind === 'TOTAL_PNL' ? 'TOTAL PNL' : item.kind }}</b><strong>{{ item.label || 'No trades yet' }}</strong><small>{{ lineageTimestamp(item) }}</small></div>
+        </div>
+      </div>
+
+      <ng-container *ngIf="selectedNode.kind === 'STOCK'; else nonStockInspector">
+        <h3>{{ selectedNode.label }}</h3>
+        <section class="decision-card"><div class="decision-kicker">AI DECISION</div><div class="decision-action" [class.decision-buy]="stockSignal() === 'BUY'" [class.decision-sell]="stockSignal() === 'SELL'" [class.decision-ignore]="stockSignal() === 'IGNORE'">{{ stockAction() }}</div><div class="decision-confidence">AI CONFIDENCE <b>{{ confidencePercent() }}%</b></div><p>{{ stockActionGuidance() }}</p></section>
+        <section class="reason-card"><div class="section-kicker">WHY</div><p>{{ selectedNode.metadata['ai_reasoning'] || 'No AI reasoning is available for this stock yet.' }}</p></section>
+        <dl class="stock-facts"><dt>Latest news</dt><dd>{{ selectedNode.metadata['latest_news'] }}</dd><dt>News published (IST)</dt><dd>{{ dateMetadataValue(selectedNode.metadata['news_published_at']) | date:'dd MMM yyyy, HH:mm:ss':'+0530' }}</dd><dt>AI analyzed (IST)</dt><dd>{{ dateMetadataValue(selectedNode.metadata['ai_analyzed_at']) | date:'dd MMM yyyy, HH:mm:ss':'+0530' }}</dd><dt>News source</dt><dd>{{ selectedNode.metadata['news_source'] }}</dd><dt>Materiality</dt><dd>{{ selectedNode.metadata['news_materiality'] }}</dd><dt>Entity match</dt><dd>{{ selectedNode.metadata['matched_alias'] }}</dd><dt>Entity confidence</dt><dd>{{ entityConfidencePercent() }}% — {{ selectedNode.metadata['entity_match_type'] }}</dd><dt>Symbol</dt><dd>{{ selectedNode.metadata['symbol'] }}</dd></dl>
+      </ng-container>
+
+      <ng-template #nonStockInspector>
+        <h3>{{ selectedNode.kind === 'TOTAL_PNL' ? 'Portfolio P&L' : selectedNode.label }}</h3>
+        <section class="pnl-card" *ngIf="selectedNode.kind === 'TOTAL_PNL'"><span>TOTAL P&L</span><strong [class.pnl-loss]="selectedNode.metadata['status'] === 'LOSS'">₹ {{ selectedNode.metadata['total_pnl'] || '0.00' }}</strong><small>{{ selectedNode.metadata['trade_count'] || 0 }} trades · {{ selectedNode.metadata['status'] }}</small></section>
+        <section class="trade-card" *ngIf="selectedNode.kind === 'TRADE'"><span>EXECUTED TRADE</span><strong>{{ selectedNode.label }}</strong><small>{{ lineageTimestamp(selectedNode) }}</small></section>
+        <dl><ng-container *ngFor="let item of selectedNode.metadata | keyvalue"><dt>{{ formatMetadataKey(item.key) }}</dt><dd>{{ formatMetadataValue(item.key, item.value) }}</dd></ng-container></dl>
+      </ng-template>
+    </aside>
+  </section>
 </main>
