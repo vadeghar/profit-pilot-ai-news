@@ -3,6 +3,7 @@ import json
 from app.domain.models import AiDecision, NewsEvent
 from app.providers.interfaces import LlmProvider
 from app.services.entity_resolution import CompanyEntityResolver
+from app.services.market_knowledge import MarketKnowledgeService
 from app.services.prompt_builder import build_news_impact_prompt
 from app.services.source_reliability import SourceReliabilityRegistry
 from app.storage import AiDecisionRepository, NewsEventRepository
@@ -17,22 +18,26 @@ class AiAnalysisService:
         *,
         entity_resolver: CompanyEntityResolver | None = None,
         source_reliability: SourceReliabilityRegistry | None = None,
+        knowledge_service: MarketKnowledgeService | None = None,
     ) -> None:
         self.news_repository = news_repository
         self.decision_repository = decision_repository
         self.llm_provider = llm_provider
         self.entity_resolver = entity_resolver
         self.source_reliability = source_reliability
+        self.knowledge_service = knowledge_service
 
     async def analyze(self, event_id: str) -> AiDecision:
         event = self.news_repository.get(event_id)
         if event is None:
             raise ValueError(f"News event not found: {event_id}")
 
+        knowledge_context = self.knowledge_service.relevant_context(event) if self.knowledge_service else []
         prompt = build_news_impact_prompt(
             event,
             resolver=self.entity_resolver,
             source_reliability=self.source_reliability,
+            knowledge_context=knowledge_context,
         )
         decision = await self.llm_provider.analyze(event, prompt)
 
@@ -43,10 +48,13 @@ class AiAnalysisService:
                 "event": event.model_dump(mode="json"),
                 "resolved_entities": [match.__dict__ for match in entities],
                 "source_reliability": reliability.__dict__ if reliability else None,
+                "knowledge_context": knowledge_context,
             },
             sort_keys=True,
         )
         self.decision_repository.save(event.id, decision, prompt, input_snapshot)
+        if self.knowledge_service:
+            self.knowledge_service.record(event, decision)
         return decision
 
     def decisions_for_event(self, event_id: str) -> list[AiDecision]:
