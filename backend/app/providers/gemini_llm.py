@@ -1,6 +1,7 @@
+import json
+
 import httpx
 
-from app.config import settings
 from app.domain.models import AiDecision, NewsEvent, Signal
 from app.providers.interfaces import LlmProvider
 from app.services.prompt_builder import PROMPT_VERSION
@@ -48,7 +49,7 @@ class GeminiLlmProvider(LlmProvider):
 
         try:
             text = data["candidates"][0]["content"]["parts"][0]["text"]
-            result = __import__("json").loads(text)
+            result = json.loads(text)
             signal = Signal(str(result["signal"]).upper())
             confidence = float(result["confidence"])
             if not 0.0 <= confidence <= 1.0:
@@ -56,7 +57,7 @@ class GeminiLlmProvider(LlmProvider):
             reasoning = str(result["reasoning"]).strip()
             if not reasoning:
                 raise ValueError("reasoning cannot be empty")
-        except (KeyError, IndexError, TypeError, ValueError, __import__("json").JSONDecodeError) as exc:
+        except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
             raise RuntimeError("Gemini returned an invalid AI decision payload") from exc
 
         return AiDecision(
