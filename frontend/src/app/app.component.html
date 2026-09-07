@@ -31,7 +31,7 @@
       <div class="system-title">SYSTEM TELEMETRY</div>
       <div class="metric"><span>NEWS ENGINE</span><b>{{ (health?.news_loop || 'CONNECTING') | uppercase }}</b></div>
       <div class="metric"><span>MARKET DATA</span><b>{{ (health?.market_data_provider || 'UNKNOWN') | uppercase }}</b></div>
-      <div class="metric"><span>LAST SCAN</span><b>{{ health?.last_cycle_at ? (health?.last_cycle_at | date:'HH:mm:ss') : '--:--:--' }}</b></div>
+      <div class="metric"><span>LAST SCAN</span><b>{{ health?.last_cycle_at ? (health.last_cycle_at | date:'HH:mm:ss') : '--:--:--' }}</b></div>
       <div class="metric"><span>NEW STORIES</span><b>{{ health?.last_cycle_new ?? 0 }}</b></div>
       <div class="metric"><span>AI PROCESSED</span><b>{{ health?.last_cycle_processed ?? 0 }}</b></div>
       <div class="metric" *ngIf="health?.last_cycle_error"><span>PIPELINE</span><b class="warning">WARNING</b></div>
