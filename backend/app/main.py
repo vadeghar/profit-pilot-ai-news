@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,15 +42,16 @@ else:
 
 llm_provider_name = settings.llm_provider.lower()
 if llm_provider_name == "groq":
-    if not settings.groq_api_key:
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not groq_api_key:
         raise RuntimeError("LLM_PROVIDER=groq requires GROQ_API_KEY")
 
     primary_llm = GroqLlmProvider(
-        api_key=settings.groq_api_key,
-        model=settings.groq_model,
-        timeout_seconds=settings.groq_timeout_seconds,
-        max_retries=settings.groq_max_retries,
-        retry_base_seconds=settings.groq_retry_base_seconds,
+        api_key=groq_api_key,
+        model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
+        timeout_seconds=float(os.getenv("GROQ_TIMEOUT_SECONDS", "30")),
+        max_retries=int(os.getenv("GROQ_MAX_RETRIES", "3")),
+        retry_base_seconds=float(os.getenv("GROQ_RETRY_BASE_SECONDS", "1")),
     )
 
     fallback_llm = None
