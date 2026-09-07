@@ -276,10 +276,12 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
         nodes.forEach((d, index) => {
           const floatX = laneX[d.kind] + Math.sin(now / 2400 + index * 1.7) * 3;
           const floatY = height / 2 + Math.sin(now / 1750 + index * 1.35) * 9;
-          d.x = (d.x ?? width / 2) + (floatX - (d.x ?? width / 2)) * .015;
-          d.y = (d.y ?? height / 2) + (floatY - (d.y ?? height / 2)) * .015;
-          d.x = Math.max(45, Math.min(width - 45, d.x));
-          d.y = Math.max(65, Math.min(height - 55, d.y));
+          const currentX = d.x ?? width / 2;
+          const currentY = d.y ?? height / 2;
+          const nextX = currentX + (floatX - currentX) * .015;
+          const nextY = currentY + (floatY - currentY) * .015;
+          d.x = Math.max(45, Math.min(width - 45, nextX));
+          d.y = Math.max(65, Math.min(height - 55, nextY));
         });
         link.attr('x1', d => this.coordinate(d.source, 'x')).attr('y1', d => this.coordinate(d.source, 'y')).attr('x2', d => this.coordinate(d.target, 'x')).attr('y2', d => this.coordinate(d.target, 'y'));
         node.attr('transform', d => `translate(${d.x},${d.y})`);
