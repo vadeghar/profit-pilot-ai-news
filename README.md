@@ -10,6 +10,9 @@ The repository contains the first end-to-end development architecture slice:
 - Pydantic/Pydantic Settings configuration and domain contracts
 - Provider interfaces for news, market data, LLM analysis, and execution
 - Stub providers for deterministic development
+- Free RSS/Atom news ingestion for the trial phase
+- Lightweight title-based NSE symbol resolution
+- Stable RSS event fingerprints and cross-feed deduplication
 - SQLite persistence for news, AI decisions, paper orders, and positions
 - Deterministic trading rules and risk engine
 - Paper execution with realized and unrealized P&L
@@ -19,6 +22,26 @@ The repository contains the first end-to-end development architecture slice:
 - Angular 22 frontend foundation with Market Brain pipeline lanes and node inspector
 - Docker Compose development infrastructure with SQLite persistence and Redis
 - pytest, Ruff, and mypy project configuration
+
+## Free-first news trial
+
+The trial does **not require paid news APIs**. Set `NEWS_PROVIDER=rss` and configure public RSS/Atom feeds in `NEWS_RSS_FEEDS`.
+
+The RSS adapter retrieves feed metadata only (title, link/guid, publication time and feed source). It does not scrape article bodies. Feed failures are isolated so one unavailable feed does not prevent the other configured feeds from being processed.
+
+A stable SHA-256-derived event ID is generated from the source, feed identifier/link, and normalized title. The provider removes duplicate events returned by multiple configured feeds. Lightweight title keyword matching can resolve configured NSE symbols; this is intentionally a first-pass resolver and will be replaced by a stronger entity-resolution layer.
+
+This free provider is an interchangeable implementation of `NewsProvider`. Later, licensed Reuters/Bloomberg/other financial feeds, official company feeds, or social APIs can be added without changing the AI, risk, or paper-trading layers.
+
+### Example configuration
+
+```text
+NEWS_PROVIDER=rss
+NEWS_RSS_FEEDS=https://example.com/feed.xml,https://example.org/rss
+NEWS_SYMBOL_KEYWORDS_JSON={"RELIANCE":["Reliance Industries","Reliance"],"TCS":["Tata Consultancy Services","TCS"]}
+```
+
+Do not assume every publisher permits automated retrieval from every public endpoint. The trial should use public feeds/endpoints that are permitted by their terms and robots/access policies; paid/licensed feeds can be substituted later.
 
 ## Automated event processing
 
@@ -54,7 +77,9 @@ These settings are placeholders only and remain empty in `.env.example`. **No An
 
 ## Planned flow
 
-`News Sources → Normalize/Deduplicate → Entity Resolution → AI Analysis → Deterministic Signal/Risk → Paper Trade → Outcome → Market Brain`
+`Free RSS/Public Sources → Normalize/Deduplicate → Entity Resolution → AI Analysis → Deterministic Signal/Risk → Paper Trade → Outcome → Market Brain`
+
+Later, paid/licensed news APIs and official social APIs can replace or supplement the free providers. Provider-level performance will be measured so we can determine whether a paid source actually improves latency, coverage, signal quality, or P&L before purchasing it.
 
 The system will support PRE-MARKET, MARKET HOURS, and POST-MARKET states and keep AI decisions auditable through versioned prompts, model metadata, structured decisions, signals, and trade outcomes.
 
