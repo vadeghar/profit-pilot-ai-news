@@ -62,13 +62,11 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private connectBrain(): void {
     if (this.destroyed) return;
-
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.hostname || 'localhost';
     this.socketState = 'CONNECTING';
     this.cdr.markForCheck();
     this.socket = new WebSocket(`${protocol}//${host}:8000/ws/market-brain`);
-
     this.socket.onopen = () => {
       this.reconnectAttempts = 0;
       this.socketState = 'LIVE';
@@ -112,16 +110,12 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       const health = await response.json() as HealthStatus;
       const previousCycle = this.health?.last_cycle_at;
       this.health = health;
-      if (this.snapshot.phase !== health.market_phase) {
-        this.snapshot = { ...this.snapshot, phase: health.market_phase };
-      }
+      if (this.snapshot.phase !== health.market_phase) this.snapshot = { ...this.snapshot, phase: health.market_phase };
       if (health.last_cycle_at && health.last_cycle_at !== previousCycle) {
         const cycleTime = this.formatTime(health.last_cycle_at);
         this.pushActivity(`RSS // SCAN COMPLETE ${cycleTime} // ${health.last_cycle_new} NEW // ${health.last_cycle_processed} PROCESSED`);
       }
-      if (health.last_cycle_error) {
-        this.pushActivity(`PIPELINE // WARNING // ${health.last_cycle_error}`);
-      }
+      if (health.last_cycle_error) this.pushActivity(`PIPELINE // WARNING // ${health.last_cycle_error}`);
       this.cdr.markForCheck();
     } catch {
       this.pushActivity('SYSTEM // BACKEND TELEMETRY UNAVAILABLE');
@@ -137,9 +131,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       const previousIds = new Set(this.recentNews.map(item => item.id));
       this.recentNews = news;
       for (const item of news.slice(0, 3).reverse()) {
-        if (!previousIds.has(item.id)) {
-          this.pushActivity(`NEWS // ${item.source.toUpperCase()} // ${item.title}`);
-        }
+        if (!previousIds.has(item.id)) this.pushActivity(`NEWS // ${item.source.toUpperCase()} // ${item.title}`);
       }
       this.cdr.markForCheck();
     } catch {
@@ -153,8 +145,11 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     this.activity = [line, ...this.activity.filter(item => item !== line)].slice(0, 12);
   }
 
-  private formatTime(value: string): string {
-    return new Date(value).toLocaleTimeString('en-IN', { hour12: false });
+  private formatTime(value: string): string { return new Date(value).toLocaleTimeString('en-IN', { hour12: false }); }
+
+  formatConfidence(value: string | number | boolean | undefined): string {
+    if (typeof value !== 'number') return 'N/A';
+    return `${Math.round(value * 100)}%`;
   }
 
   private renderGraph(): void {
@@ -175,28 +170,17 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     const laneX: Record<string, number> = { NEWS: width * .10, AI: width * .30, STOCK: width * .50, PAPER_TRADE: width * .70, POSITION: width * .90 };
     const nodes: BrainNode[] = this.snapshot.nodes.map(n => ({ ...n, x: laneX[n.kind] ?? width / 2, y: height / 2 }));
     const links: BrainEdge[] = this.snapshot.edges.map(e => ({ ...e }));
-
-    const link = svg.append('g').attr('class', 'links')
-      .selectAll<SVGLineElement, BrainEdge>('line').data(links).join('line')
+    const link = svg.append('g').attr('class', 'links').selectAll<SVGLineElement, BrainEdge>('line').data(links).join('line')
       .attr('class', 'brain-link').attr('marker-end', 'url(#arrow)');
-
-    const node = svg.append('g').attr('class', 'nodes')
-      .selectAll<SVGGElement, BrainNode>('g').data(nodes).join('g')
+    const node = svg.append('g').attr('class', 'nodes').selectAll<SVGGElement, BrainNode>('g').data(nodes).join('g')
       .attr('class', 'brain-node').on('click', (_, d) => this.selectNode(d))
-      .call(
-        d3.drag<SVGGElement, BrainNode>()
-          .on('start', (event, d) => {
-            if (!event.active) this.simulation?.alphaTarget(.25).restart();
-            d.x = event.x; d.y = event.y;
-          })
-          .on('drag', (event, d) => { d.x = event.x; d.y = event.y; })
-          .on('end', (event) => { if (!event.active) this.simulation?.alphaTarget(0); }),
-      );
-
+      .call(d3.drag<SVGGElement, BrainNode>()
+        .on('start', (event, d) => { if (!event.active) this.simulation?.alphaTarget(.25).restart(); d.x = event.x; d.y = event.y; })
+        .on('drag', (event, d) => { d.x = event.x; d.y = event.y; })
+        .on('end', (event) => { if (!event.active) this.simulation?.alphaTarget(0); }));
     node.append('circle').attr('r', d => d.kind === 'AI' ? 25 : 20).attr('class', d => `node-${d.kind.toLowerCase()}`);
     node.append('text').attr('class', 'node-kind').attr('dy', -30).text(d => d.kind);
     node.append('text').attr('class', 'node-label').attr('dy', 4).text(d => d.label.length > 24 ? `${d.label.slice(0, 24)}…` : d.label);
-
     this.simulation = d3.forceSimulation<BrainNode>(nodes)
       .force('link', d3.forceLink<BrainNode, BrainEdge>(links).id(d => d.id).distance(120).strength(.65))
       .force('charge', d3.forceManyBody<BrainNode>().strength(-260))
@@ -214,11 +198,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       });
   }
 
-  private coordinate(value: string | BrainNode, axis: 'x' | 'y'): number {
-    if (typeof value === 'string') return 0;
-    return value[axis] ?? 0;
-  }
-
+  private coordinate(value: string | BrainNode, axis: 'x' | 'y'): number { return typeof value === 'string' ? 0 : value[axis] ?? 0; }
   selectNode(node: BrainNode): void { this.selectedNode = node; this.cdr.markForCheck(); }
   closeInspector(): void { this.selectedNode = undefined; this.cdr.markForCheck(); }
 
