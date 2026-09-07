@@ -1,76 +1,31 @@
 <main class="shell">
   <header class="topbar">
     <div>
-      <div class="eyebrow">PROFIT PILOT</div>
+      <div class="eyebrow">PROFIT PILOT / MARKET INTELLIGENCE</div>
       <h1>Market Brain</h1>
+      <p class="subtitle">News → AI → Stocks → Signals → Paper Trades → Outcomes</p>
     </div>
     <div class="phase">{{ snapshot.phase }}</div>
   </header>
 
   <section class="canvas">
+    <div class="graph-header">
+      <span>{{ snapshot.nodes.length }} nodes</span><span>{{ snapshot.edges.length }} connections</span>
+      <span class="live"><i></i> LIVE</span>
+    </div>
     <div class="empty" *ngIf="snapshot.nodes.length === 0">
       <div class="pulse"></div>
       <h2>Waiting for market intelligence</h2>
-      <p>News → AI → Stocks → Signals → Paper Trades → Outcomes</p>
-      <span>Waiting for the first persisted news event or paper-trading update.</span>
+      <p>The graph will activate when persisted news, AI decisions or paper trades arrive.</p>
     </div>
-
-    <div class="brain" *ngIf="snapshot.nodes.length > 0">
-      <section class="lane">
-        <span class="lane-title">NEWS SOURCES</span>
-        <button class="node" *ngFor="let node of nodesByKind('NEWS')" (click)="selectNode(node)">
-          <small>{{ node.kind }}</small>
-          <strong>{{ node.label }}</strong>
-          <span>{{ node.metadata['source'] }}</span>
-        </button>
-      </section>
-
-      <section class="lane">
-        <span class="lane-title">AI PROCESSING</span>
-        <button class="node" *ngFor="let node of nodesByKind('AI')" (click)="selectNode(node)">
-          <small>{{ node.kind }}</small>
-          <strong>{{ node.label }}</strong>
-          <span>Confidence {{ node.metadata['confidence'] | number:'1.0-2' }}</span>
-        </button>
-      </section>
-
-      <section class="lane">
-        <span class="lane-title">STOCKS</span>
-        <button class="node" *ngFor="let node of nodesByKind('STOCK')" (click)="selectNode(node)">
-          <small>{{ node.kind }}</small>
-          <strong>{{ node.label }}</strong>
-        </button>
-      </section>
-
-      <section class="lane">
-        <span class="lane-title">PAPER TRADES</span>
-        <button class="node" *ngFor="let node of nodesByKind('PAPER_TRADE')" (click)="selectNode(node)">
-          <small>{{ node.kind }}</small>
-          <strong>{{ node.label }}</strong>
-          <span>{{ node.metadata['status'] }}</span>
-        </button>
-      </section>
-
-      <section class="lane">
-        <span class="lane-title">OUTCOMES</span>
-        <button class="node" *ngFor="let node of nodesByKind('POSITION')" (click)="selectNode(node)">
-          <small>{{ node.kind }}</small>
-          <strong>{{ node.label }}</strong>
-          <span>P&L {{ node.metadata['total_pnl'] | number:'1.2-2' }}</span>
-        </button>
-      </section>
-    </div>
+    <svg #brainCanvas class="brain-graph" *ngIf="snapshot.nodes.length > 0" aria-label="Market Brain network visualization"></svg>
 
     <aside class="inspector" *ngIf="selectedNode">
-      <div class="inspector-head">
-        <span>{{ selectedNode.kind }}</span>
-        <button (click)="selectedNode = undefined">×</button>
-      </div>
+      <div class="inspector-head"><span>{{ selectedNode.kind }}</span><button (click)="closeInspector()" aria-label="Close">×</button></div>
       <h3>{{ selectedNode.label }}</h3>
       <dl>
         <ng-container *ngFor="let item of selectedNode.metadata | keyvalue">
-          <dt>{{ item.key }}</dt>
-          <dd>{{ item.value }}</dd>
+          <dt>{{ item.key }}</dt><dd>{{ item.value }}</dd>
         </ng-container>
       </dl>
     </aside>
