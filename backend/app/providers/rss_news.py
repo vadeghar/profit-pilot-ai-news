@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import re
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from urllib.parse import urlparse
@@ -11,25 +10,24 @@ from xml.etree import ElementTree
 
 from app.domain.models import NewsEvent
 from app.providers.interfaces import NewsProvider
+from app.services.entity_resolution import CompanyEntityResolver
 
 
 class RssNewsProvider(NewsProvider):
-    """Free RSS/Atom metadata provider using Python's standard library only.
-
-    The provider fetches feed metadata, not article bodies. This keeps the trial
-    implementation lightweight and avoids a paid news API dependency.
-    """
+    """Free RSS/Atom metadata provider using Python's standard library only."""
 
     def __init__(
         self,
         feed_urls: list[str],
         *,
+        resolver: CompanyEntityResolver | None = None,
         symbol_keywords: dict[str, list[str]] | None = None,
         timeout_seconds: float = 10.0,
         user_agent: str = "ProfitPilotAI-News/0.1",
         max_items_per_feed: int = 50,
     ) -> None:
         self.feed_urls = [url.strip() for url in feed_urls if url.strip()]
+        self.resolver = resolver
         self.symbol_keywords = {
             symbol.upper(): [keyword.casefold() for keyword in keywords]
             for symbol, keywords in (symbol_keywords or {}).items()
@@ -78,13 +76,14 @@ class RssNewsProvider(NewsProvider):
             guid = self._text(item, "guid") or self._text(item, "id") or link or title
             if not title.strip():
                 continue
+            clean_title = self._clean_title(title)
             events.append(
                 NewsEvent(
-                    id=self._event_id(source, guid, title),
-                    title=self._clean_title(title),
+                    id=self._event_id(source, guid, clean_title),
+                    title=clean_title,
                     source=source,
                     published_at=self._parse_datetime(published),
-                    symbols=self._resolve_symbols(title),
+                    symbols=self._resolve_symbols(clean_title),
                     materiality=0.0,
                 )
             )
@@ -112,16 +111,12 @@ class RssNewsProvider(NewsProvider):
         return None
 
     def _resolve_symbols(self, title: str) -> list[str]:
+        if self.resolver is not None:
+            return self.resolver.resolve_symbols(title)
         normalized = title.casefold()
         matches: list[str] = []
         for symbol, keywords in self.symbol_keywords.items():
-            if any(
-                re.search(
-                    rf"(?<![a-z0-9]){re.escape(keyword)}(?![a-z0-9])",
-                    normalized,
-                )
-                for keyword in keywords
-            ):
+            if any(keyword in normalized for keyword in keywords):
                 matches.append(symbol)
         return matches
 
