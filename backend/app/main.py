@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.domain.models import AiDecision, MarketBrainSnapshot, MarketPhase, NewsEvent, PaperExecutionResult, PaperOrder, PositionSnapshot, ProcessingResult, TradeIntent
 from app.providers.angel_one import AngelOneMarketDataProvider
+from app.providers.deepseek_llm import DeepSeekLlmProvider
+from app.providers.fallback_llm import FallbackLlmProvider
 from app.providers.gemini_llm import GeminiLlmProvider
 from app.providers.rss_news import RssNewsProvider
 from app.providers.stub_llm import StubLlmProvider
@@ -39,11 +41,24 @@ else:
 if settings.llm_provider.lower() == "gemini":
     if not settings.gemini_api_key:
         raise RuntimeError("LLM_PROVIDER=gemini requires GEMINI_API_KEY")
-    llm_provider = GeminiLlmProvider(
+
+    primary_llm = GeminiLlmProvider(
         api_key=settings.gemini_api_key,
         model=settings.gemini_model,
         timeout_seconds=settings.gemini_timeout_seconds,
+        max_retries=settings.gemini_max_retries,
+        retry_base_seconds=settings.gemini_retry_base_seconds,
     )
+
+    fallback_llm = None
+    if settings.deepseek_api_key:
+        fallback_llm = DeepSeekLlmProvider(
+            api_key=settings.deepseek_api_key,
+            model=settings.deepseek_model,
+            timeout_seconds=settings.deepseek_timeout_seconds,
+        )
+
+    llm_provider = FallbackLlmProvider(primary_llm, fallback_llm)
 else:
     llm_provider = StubLlmProvider()
 
@@ -136,6 +151,7 @@ async def health() -> dict[str, str | int | float | None]:
         "market_data_provider": settings.market_data_provider,
         "news_provider": settings.news_provider,
         "llm_provider": settings.llm_provider,
+        "llm_fallback_provider": "deepseek" if settings.deepseek_api_key else None,
         "news_loop": "running" if news_loop.running else "stopped",
         "poll_interval_seconds": settings.news_poll_interval_seconds,
         "last_cycle_at": news_loop.last_cycle_at,
