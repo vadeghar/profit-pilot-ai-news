@@ -20,12 +20,14 @@ from app.providers.stub_llm import StubLlmProvider
 from app.providers.stub_market_data import StubMarketDataProvider
 from app.providers.stub_news import StubNewsProvider
 from app.services.ai_analysis import AiAnalysisService
+from app.services.entity_resolution import EntityResolutionService
 from app.services.event_processing import EventProcessingService
 from app.services.market_brain import MarketBrainService
 from app.services.news_ingestion import NewsIngestionService
 from app.services.paper_trading import PaperTradingService
 from app.services.portfolio import PortfolioService
 from app.services.risk_engine import RiskConfig, RiskEngine
+from app.services.source_reliability import SourceReliabilityService
 from app.storage import AiDecisionRepository, NewsEventRepository, PaperTradingRepository, SqliteDatabase
 
 
@@ -58,7 +60,11 @@ if settings.market_data_provider.lower() == "angel_one":
 else:
     market_data_provider = StubMarketDataProvider()
 
-news_ingestion = NewsIngestionService(news_provider, news_repository)
+news_ingestion = NewsIngestionService(
+    news_provider,
+    news_repository,
+    EntityResolutionService.default(),
+)
 ai_analysis = AiAnalysisService(news_repository, decision_repository, llm_provider)
 risk_engine = RiskEngine(
     market_data_provider,
@@ -77,6 +83,7 @@ event_processing = EventProcessingService(
     paper_repository,
 )
 market_brain = MarketBrainService(news_repository, decision_repository, paper_repository, portfolio)
+source_reliability = SourceReliabilityService.default()
 
 
 class MarketBrainConnectionManager:
@@ -123,7 +130,6 @@ async def health() -> dict[str, str]:
         "environment": settings.environment,
         "database": "ok" if database.check() else "error",
         "market_data_provider": settings.market_data_provider,
-        "news_provider": settings.news_provider,
     }
 
 
@@ -139,6 +145,15 @@ async def list_news(limit: int = 50) -> list[NewsEvent]:
     if limit < 1 or limit > 200:
         limit = 50
     return news_repository.list_recent(limit)
+
+
+@app.get("/api/v1/news/{event_id}/source-reliability")
+async def get_source_reliability(event_id: str) -> dict[str, str | float]:
+    event = news_repository.get(event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail=f"News event not found: {event_id}")
+    result = source_reliability.score(event.source)
+    return {"source": result.source, "score": result.score, "tier": result.tier}
 
 
 @app.post("/api/v1/news/{event_id}/analyze", response_model=AiDecision)
