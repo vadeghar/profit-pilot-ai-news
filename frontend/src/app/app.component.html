@@ -31,7 +31,7 @@
       <div class="system-title">SYSTEM TELEMETRY</div>
       <div class="metric"><span>NEWS ENGINE</span><b>{{ (health?.news_loop || 'CONNECTING') | uppercase }}</b></div>
       <div class="metric"><span>MARKET DATA</span><b>{{ (health?.market_data_provider || 'UNKNOWN') | uppercase }}</b></div>
-      <div class="metric"><span>LAST SCAN</span><b>{{ health?.last_cycle_at ? (health.last_cycle_at | date:'HH:mm:ss') : '--:--:--' }}</b></div>
+      <div class="metric"><span>LAST SCAN</span><b>{{ health?.last_cycle_at ? (health?.last_cycle_at | date:'HH:mm:ss') : '--:--:--' }}</b></div>
       <div class="metric"><span>NEW STORIES</span><b>{{ health?.last_cycle_new ?? 0 }}</b></div>
       <div class="metric"><span>AI PROCESSED</span><b>{{ health?.last_cycle_processed ?? 0 }}</b></div>
       <div class="metric" *ngIf="health?.last_cycle_error"><span>PIPELINE</span><b class="warning">WARNING</b></div>
@@ -54,7 +54,7 @@
           <strong>{{ selectedNode.metadata['action'] || 'WAIT' }}</strong>
         </div>
         <div class="decision-confidence">
-          AI confidence: <b>{{ selectedNode.metadata['ai_confidence'] != null ? ((+selectedNode.metadata['ai_confidence'] * 100 | number:'1.0-0') + '%') : 'N/A' }}</b>
+          AI confidence: <b>{{ formatConfidence(selectedNode.metadata['ai_confidence']) }}</b>
         </div>
         <div class="why-block">
           <div class="section-label">WHY</div>
@@ -65,11 +65,15 @@
           <p>{{ selectedNode.metadata['news_title'] || 'No linked news headline.' }}</p>
           <small>{{ selectedNode.metadata['news_source'] || '' }}</small>
         </div>
+        <div class="entity-match">
+          <div><span>ENTITY MATCH</span><b>{{ formatConfidence(selectedNode.metadata['entity_confidence']) }}</b></div>
+          <p>How confidently the title was matched to this company. 100% means the exact company name or stock symbol was matched; an alias match is scored slightly lower.</p>
+        </div>
       </ng-container>
 
       <dl>
         <ng-container *ngFor="let item of selectedNode.metadata | keyvalue">
-          <ng-container *ngIf="selectedNode.kind !== 'STOCK' || !['action','ai_confidence','ai_reasoning','news_title','news_source'].includes(item.key)">
+          <ng-container *ngIf="selectedNode.kind !== 'STOCK' || !['action','ai_confidence','ai_reasoning','news_title','news_source','entity_confidence'].includes(item.key)">
             <dt>{{ item.key }}</dt><dd>{{ item.value }}</dd>
           </ng-container>
         </ng-container>
