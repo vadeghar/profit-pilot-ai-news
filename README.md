@@ -11,8 +11,9 @@ The repository contains the first end-to-end development architecture slice:
 - Provider interfaces for news, market data, LLM analysis, and execution
 - Stub providers for deterministic development
 - Free RSS/Atom news ingestion for the trial phase
-- Lightweight title-based NSE symbol resolution
+- Canonical NSE entity resolution with company aliases
 - Stable RSS event fingerprints and cross-feed deduplication
+- Deterministic source reliability scoring
 - SQLite persistence for news, AI decisions, paper orders, and positions
 - Deterministic trading rules and risk engine
 - Paper execution with realized and unrealized P&L
@@ -23,15 +24,27 @@ The repository contains the first end-to-end development architecture slice:
 - Docker Compose development infrastructure with SQLite persistence and Redis
 - pytest, Ruff, and mypy project configuration
 
+## Entity resolution
+
+`EntityResolutionService` maps company names and aliases in news titles to canonical NSE symbols before persistence. The initial catalog covers major liquid names including RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK, SBIN, ITC, BHARTIARTL, LT, HINDUNILVR, KOTAKBANK, AXISBANK, MARUTI, TATAMOTORS, SUNPHARMA, WIPRO, HCLTECH, ADANIENT and ADANIPORTS.
+
+The resolver uses word-boundary matching to avoid obvious partial-word false positives and merges resolved symbols with any symbols already supplied by a news provider. The catalog is deliberately small and deterministic for the trial; a larger NSE master/security-reference dataset can replace it without changing the ingestion contract.
+
+## Source reliability
+
+`SourceReliabilityService` provides a deterministic 0–1 source-quality score and A–D tier. Initial defaults include higher scores for primary/regulatory sources and established financial publishers, with a neutral score for unknown sources. Source reliability is kept separate from AI materiality: a reliable source does not automatically make a story trade-worthy.
+
+Use `GET /api/v1/news/{event_id}/source-reliability` to inspect the current score/tier for a persisted event.
+
 ## Free-first news trial
 
 The trial does **not require paid news APIs**. Set `NEWS_PROVIDER=rss` and configure public RSS/Atom feeds in `NEWS_RSS_FEEDS`.
 
 The RSS adapter retrieves feed metadata only (title, link/guid, publication time and feed source). It does not scrape article bodies. Feed failures are isolated so one unavailable feed does not prevent the other configured feeds from being processed.
 
-A stable SHA-256-derived event ID is generated from the source, feed identifier/link, and normalized title. The provider removes duplicate events returned by multiple configured feeds. Lightweight title keyword matching can resolve configured NSE symbols; this is intentionally a first-pass resolver and will be replaced by a stronger entity-resolution layer.
+A stable SHA-256-derived event ID is generated from the source, feed identifier/link, and normalized title. The provider removes duplicate events returned by multiple configured feeds. Entity resolution then enriches each event with canonical NSE symbols.
 
-This free provider is an interchangeable implementation of `NewsProvider`. Later, licensed Reuters/Bloomberg/other financial feeds, official company feeds, or social APIs can be added without changing the AI, risk, or paper-trading layers.
+This free provider is an interchangeable implementation of `NewsProvider`. Later, licensed financial feeds, official company feeds, or social APIs can be added without changing the AI, risk, or paper-trading layers.
 
 ### Example configuration
 
@@ -41,7 +54,7 @@ NEWS_RSS_FEEDS=https://example.com/feed.xml,https://example.org/rss
 NEWS_SYMBOL_KEYWORDS_JSON={"RELIANCE":["Reliance Industries","Reliance"],"TCS":["Tata Consultancy Services","TCS"]}
 ```
 
-Do not assume every publisher permits automated retrieval from every public endpoint. The trial should use public feeds/endpoints that are permitted by their terms and robots/access policies; paid/licensed feeds can be substituted later.
+Do not assume every publisher permits automated retrieval from every public endpoint. The trial should use public feeds/endpoints that are permitted by their terms and robots/access policies; licensed feeds can be substituted later.
 
 ## Automated event processing
 
@@ -77,7 +90,7 @@ These settings are placeholders only and remain empty in `.env.example`. **No An
 
 ## Planned flow
 
-`Free RSS/Public Sources → Normalize/Deduplicate → Entity Resolution → AI Analysis → Deterministic Signal/Risk → Paper Trade → Outcome → Market Brain`
+`Free RSS/Public Sources → Normalize/Deduplicate → Entity Resolution → Source Reliability → AI Analysis → Deterministic Signal/Risk → Paper Trade → Outcome → Market Brain`
 
 Later, paid/licensed news APIs and official social APIs can replace or supplement the free providers. Provider-level performance will be measured so we can determine whether a paid source actually improves latency, coverage, signal quality, or P&L before purchasing it.
 
