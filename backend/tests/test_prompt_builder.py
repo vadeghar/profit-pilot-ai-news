@@ -18,13 +18,16 @@ def test_prompt_includes_entity_resolution_and_source_reliability() -> None:
         event,
         resolver=resolver,
         source_reliability=SourceReliabilityRegistry(),
+        knowledge_context=["- Symbols: RELIANCE; Signal: BUY; Confidence: 0.80; Prior context: Positive order catalyst."],
     )
 
-    assert PROMPT_VERSION == "news-impact-v2"
+    assert PROMPT_VERSION == "news-impact-v3-market-context"
     assert "Source reliability: 0.95 (Tier A" in prompt
     assert "RELIANCE: Reliance Industries" in prompt
     assert "matched: Reliance Industries" in prompt
     assert "confidence: 1.00" in prompt
+    assert "Relevant market knowledge:" in prompt
+    assert "Positive order catalyst." in prompt
 
 
 def test_prompt_handles_unresolved_entity_and_unknown_source() -> None:
@@ -44,3 +47,4 @@ def test_prompt_handles_unresolved_entity_and_unknown_source() -> None:
     assert "Source reliability: 0.50 (Tier D" in prompt
     assert "Resolved entities:\n- NONE" in prompt
     assert "Symbols: NONE" in prompt
+    assert "Relevant market knowledge:\n- NONE" in prompt
