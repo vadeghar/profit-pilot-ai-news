@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.7-flash"
     gemini_timeout_seconds: float = 30.0
+    gemini_max_retries: int = 3
+    gemini_retry_base_seconds: float = 1.0
+    deepseek_api_key: str | None = None
+    deepseek_model: str = "deepseek-v4-flash"
+    deepseek_timeout_seconds: float = 30.0
     market_data_provider: str = "stub"
     news_provider: str = "stub"
     news_rss_feeds: str = ""
