@@ -88,7 +88,7 @@ class PaperTradingRepository:
     def __init__(self, database: SqliteDatabase) -> None:
         self.database = database
 
-    def save_order(self, order: PaperOrder) -> None:
+    def save_execution(self, order: PaperOrder, position: Position) -> None:
         with self.database.connect() as connection:
             connection.execute(
                 """INSERT INTO paper_orders
@@ -96,6 +96,15 @@ class PaperTradingRepository:
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (order.id, order.event_id, order.symbol, order.side.value, order.quantity,
                  order.fill_price, order.notional, order.status, order.created_at),
+            )
+            connection.execute(
+                """INSERT INTO positions (symbol, quantity, average_price, realized_pnl)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(symbol) DO UPDATE SET
+                     quantity=excluded.quantity,
+                     average_price=excluded.average_price,
+                     realized_pnl=excluded.realized_pnl""",
+                (position.symbol, position.quantity, position.average_price, position.realized_pnl),
             )
 
     def has_order_for_event(self, event_id: str) -> bool:
