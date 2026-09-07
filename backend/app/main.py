@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +10,7 @@ from app.providers.angel_one import AngelOneMarketDataProvider
 from app.providers.deepseek_llm import DeepSeekLlmProvider
 from app.providers.fallback_llm import FallbackLlmProvider
 from app.providers.gemini_llm import GeminiLlmProvider
+from app.providers.groq_llm import GroqLlmProvider
 from app.providers.rss_news import RssNewsProvider
 from app.providers.stub_llm import StubLlmProvider
 from app.providers.stub_market_data import StubMarketDataProvider
@@ -39,7 +41,29 @@ else:
     news_provider = StubNewsProvider()
 
 llm_provider_name = settings.llm_provider.lower()
-if llm_provider_name == "gemini":
+if llm_provider_name == "groq":
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not groq_api_key:
+        raise RuntimeError("LLM_PROVIDER=groq requires GROQ_API_KEY")
+
+    primary_llm = GroqLlmProvider(
+        api_key=groq_api_key,
+        model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
+        timeout_seconds=float(os.getenv("GROQ_TIMEOUT_SECONDS", "30")),
+        max_retries=int(os.getenv("GROQ_MAX_RETRIES", "3")),
+        retry_base_seconds=float(os.getenv("GROQ_RETRY_BASE_SECONDS", "1")),
+    )
+
+    fallback_llm = None
+    if settings.deepseek_api_key:
+        fallback_llm = DeepSeekLlmProvider(
+            api_key=settings.deepseek_api_key,
+            model=settings.deepseek_model,
+            timeout_seconds=settings.deepseek_timeout_seconds,
+        )
+
+    llm_provider = FallbackLlmProvider(primary_llm, fallback_llm)
+elif llm_provider_name == "gemini":
     if not settings.gemini_api_key:
         raise RuntimeError("LLM_PROVIDER=gemini requires GEMINI_API_KEY")
 
@@ -160,7 +184,7 @@ async def health() -> dict[str, str | int | float | None]:
         "market_data_provider": settings.market_data_provider,
         "news_provider": settings.news_provider,
         "llm_provider": settings.llm_provider,
-        "llm_fallback_provider": "deepseek" if llm_provider_name == "gemini" and settings.deepseek_api_key else None,
+        "llm_fallback_provider": "deepseek" if llm_provider_name in {"gemini", "groq"} and settings.deepseek_api_key else None,
         "news_loop": "running" if news_loop.running else "stopped",
         "poll_interval_seconds": settings.news_poll_interval_seconds,
         "last_cycle_at": news_loop.last_cycle_at,
