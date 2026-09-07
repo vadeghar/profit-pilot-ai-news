@@ -44,6 +44,25 @@ class TradeIntent(BaseModel):
     rule_version: str
 
 
+class PaperOrder(BaseModel):
+    id: str
+    event_id: str
+    symbol: str
+    side: Signal
+    quantity: int = Field(gt=0)
+    fill_price: float = Field(gt=0)
+    notional: float = Field(gt=0)
+    status: str
+    created_at: str
+
+
+class Position(BaseModel):
+    symbol: str
+    quantity: int
+    average_price: float = Field(ge=0)
+    realized_pnl: float = 0
+
+
 class MarketBrainNode(BaseModel):
     id: str
     kind: str
