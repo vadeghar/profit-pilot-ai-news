@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///backend/data/profit_pilot.db"
     redis_url: str = "redis://localhost:6379/0"
     cors_origins: str = "http://localhost:4200,http://127.0.0.1:4200"
+    cors_origin_regex: str | None = None
     llm_provider: str = "stub"
     groq_api_key: str | None = None
     groq_model: str = "openai/gpt-oss-120b"
