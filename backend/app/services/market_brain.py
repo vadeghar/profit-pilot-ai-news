@@ -85,7 +85,16 @@ class MarketBrainService:
             for symbol in event.symbols:
                 match = matches_by_symbol.get(symbol)
                 stock_id = f"stock:{symbol}"
-                stock_metadata: dict[str, str | float | int | bool] = {"symbol": symbol}
+                stock_metadata: dict[str, str | float | int | bool] = {
+                    "symbol": symbol,
+                    "action": decision.signal.value,
+                    "ai_confidence": decision.confidence,
+                    "ai_reasoning": decision.reasoning,
+                    "news_title": event.title,
+                    "news_source": event.source,
+                    "news_materiality": event.materiality,
+                    "model": decision.model,
+                }
                 if match is not None:
                     stock_metadata.update(
                         {
