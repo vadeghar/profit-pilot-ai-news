@@ -10,6 +10,7 @@ from app.providers.stub_llm import StubLlmProvider
 from app.providers.stub_market_data import StubMarketDataProvider
 from app.providers.stub_news import StubNewsProvider
 from app.services.ai_analysis import AiAnalysisService
+from app.services.automated_news_loop import AutomatedNewsLoop
 from app.services.entity_catalog import resolver
 from app.services.event_processing import EventProcessingService
 from app.services.market_brain import MarketBrainService
@@ -25,46 +26,23 @@ database = SqliteDatabase(settings.database_url)
 news_repository = NewsEventRepository(database)
 decision_repository = AiDecisionRepository(database)
 paper_repository = PaperTradingRepository(database)
-
 source_reliability = SourceReliabilityRegistry()
 
 if settings.news_provider.lower() == "rss":
-    news_provider = RssNewsProvider(
-        settings.news_feeds,
-        resolver=resolver,
-        symbol_keywords=settings.news_symbol_keywords,
-        timeout_seconds=settings.news_fetch_timeout_seconds,
-        max_items_per_feed=settings.news_max_items_per_feed,
-    )
+    news_provider = RssNewsProvider(settings.news_feeds, resolver=resolver, symbol_keywords=settings.news_symbol_keywords, timeout_seconds=settings.news_fetch_timeout_seconds, max_items_per_feed=settings.news_max_items_per_feed)
 else:
     news_provider = StubNewsProvider()
 
 llm_provider = StubLlmProvider()
 
 if settings.market_data_provider.lower() == "angel_one":
-    market_data_provider = AngelOneMarketDataProvider(
-        api_key=settings.angel_api_key,
-        client_code=settings.angel_client_code,
-        password=settings.angel_password,
-        totp_secret=settings.angel_totp_secret,
-        symbol_tokens=settings.angel_symbol_tokens,
-        exchange=settings.angel_exchange,
-    )
+    market_data_provider = AngelOneMarketDataProvider(api_key=settings.angel_api_key, client_code=settings.angel_client_code, password=settings.angel_password, totp_secret=settings.angel_totp_secret, symbol_tokens=settings.angel_symbol_tokens, exchange=settings.angel_exchange)
 else:
     market_data_provider = StubMarketDataProvider()
 
 news_ingestion = NewsIngestionService(news_provider, news_repository)
-ai_analysis = AiAnalysisService(
-    news_repository,
-    decision_repository,
-    llm_provider,
-    entity_resolver=resolver,
-    source_reliability=source_reliability,
-)
-risk_engine = RiskEngine(
-    market_data_provider,
-    RiskConfig(max_order_notional=settings.max_order_notional, max_order_quantity=settings.max_order_quantity),
-)
+ai_analysis = AiAnalysisService(news_repository, decision_repository, llm_provider, entity_resolver=resolver, source_reliability=source_reliability)
+risk_engine = RiskEngine(market_data_provider, RiskConfig(max_order_notional=settings.max_order_notional, max_order_quantity=settings.max_order_quantity))
 paper_trading = PaperTradingService(paper_repository)
 portfolio = PortfolioService(paper_repository, market_data_provider)
 event_processing = EventProcessingService(news_repository, ai_analysis, risk_engine, paper_trading, paper_repository)
@@ -99,10 +77,34 @@ class MarketBrainConnectionManager:
 brain_connections = MarketBrainConnectionManager()
 
 
+async def _broadcast_brain() -> None:
+    await brain_connections.broadcast()
+
+
+def _market_phase() -> MarketPhase:
+    # Market-phase scheduling is intentionally kept behind this boundary; the
+    # first MVP loop uses MARKET_HOURS and can be replaced with an exchange
+    # calendar without changing the ingestion/processing pipeline.
+    return MarketPhase.MARKET_HOURS
+
+
+news_loop = AutomatedNewsLoop(
+    news_ingestion,
+    event_processing,
+    interval_seconds=settings.news_poll_interval_seconds,
+    quantity=settings.news_trade_quantity,
+    phase_provider=_market_phase,
+    on_update=_broadcast_brain,
+)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     database.initialize()
+    if settings.news_provider.lower() == "rss" and settings.news_feeds:
+        news_loop.start()
     yield
+    await news_loop.stop()
 
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
@@ -110,7 +112,7 @@ app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {"status": "ok", "environment": settings.environment, "database": "ok" if database.check() else "error", "market_data_provider": settings.market_data_provider, "news_provider": settings.news_provider}
+    return {"status": "ok", "environment": settings.environment, "database": "ok" if database.check() else "error", "market_data_provider": settings.market_data_provider, "news_provider": settings.news_provider, "news_loop": "running" if news_loop.running else "stopped"}
 
 
 @app.post("/api/v1/news/ingest", response_model=list[NewsEvent])
