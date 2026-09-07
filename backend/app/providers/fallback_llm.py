@@ -18,6 +18,11 @@ class FallbackLlmProvider(LlmProvider):
             return await self.primary.analyze(event, prompt)
         except Exception as primary_error:
             if self.fallback is None:
+                logger.error(
+                    "Primary LLM failed for event %s and no fallback provider is configured: %s",
+                    event.id,
+                    primary_error,
+                )
                 raise
             logger.warning(
                 "Primary LLM failed for event %s; using fallback provider: %s",
