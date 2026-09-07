@@ -5,7 +5,6 @@ import hashlib
 import re
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
-from typing import Any
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
@@ -116,7 +115,13 @@ class RssNewsProvider(NewsProvider):
         normalized = title.casefold()
         matches: list[str] = []
         for symbol, keywords in self.symbol_keywords.items():
-            if any(re.search(rf"(?<![a-z0-9]){re.escape(keyword)}(?![a-z0-9])", normalized) for keyword in keywords):
+            if any(
+                re.search(
+                    rf"(?<![a-z0-9]){re.escape(keyword)}(?![a-z0-9])",
+                    normalized,
+                )
+                for keyword in keywords
+            ):
                 matches.append(symbol)
         return matches
 
