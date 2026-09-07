@@ -5,7 +5,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 
-from app.domain.models import MarketPhase
+from app.domain.models import MarketPhase, NewsEvent
 from app.services.event_processing import EventProcessingService
 from app.services.news_ingestion import NewsIngestionService
 from app.storage import AiQueueRepository
@@ -85,7 +85,7 @@ class AutomatedNewsLoop:
         return now >= last_run + timedelta(seconds=self._ai_interval(phase))
 
     @staticmethod
-    def _priority(event) -> float:
+    def _priority(event: NewsEvent) -> float:
         return min(1.0, event.materiality + min(len(event.symbols), 3) * 0.1)
 
     async def run_once(self) -> int:
