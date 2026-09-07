@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.domain.models import AiDecision, MarketBrainSnapshot, MarketPhase, NewsEvent, PaperExecutionResult, PaperOrder, PositionSnapshot, ProcessingResult, TradeIntent
 from app.providers.angel_one import AngelOneMarketDataProvider
+from app.providers.gemini_llm import GeminiLlmProvider
 from app.providers.rss_news import RssNewsProvider
 from app.providers.stub_llm import StubLlmProvider
 from app.providers.stub_market_data import StubMarketDataProvider
@@ -35,7 +36,16 @@ if settings.news_provider.lower() == "rss":
 else:
     news_provider = StubNewsProvider()
 
-llm_provider = StubLlmProvider()
+if settings.llm_provider.lower() == "gemini":
+    if not settings.gemini_api_key:
+        raise RuntimeError("LLM_PROVIDER=gemini requires GEMINI_API_KEY")
+    llm_provider = GeminiLlmProvider(
+        api_key=settings.gemini_api_key,
+        model=settings.gemini_model,
+        timeout_seconds=settings.gemini_timeout_seconds,
+    )
+else:
+    llm_provider = StubLlmProvider()
 
 if settings.market_data_provider.lower() == "angel_one":
     market_data_provider = AngelOneMarketDataProvider(api_key=settings.angel_api_key, client_code=settings.angel_client_code, password=settings.angel_password, totp_secret=settings.angel_totp_secret, symbol_tokens=settings.angel_symbol_tokens, exchange=settings.angel_exchange)
