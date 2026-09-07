@@ -74,6 +74,15 @@ class PaperExecutionResult(BaseModel):
     position: Position
 
 
+class ProcessingResult(BaseModel):
+    status: str
+    event: NewsEvent
+    decision: AiDecision | None = None
+    intent: TradeIntent | None = None
+    execution: PaperExecutionResult | None = None
+    reason: str
+
+
 class MarketBrainNode(BaseModel):
     id: str
     kind: str
