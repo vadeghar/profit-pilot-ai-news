@@ -127,6 +127,15 @@ async def list_news(limit: int = 50) -> list[NewsEvent]:
     return news_repository.list_recent(limit)
 
 
+@app.get("/api/v1/news/{event_id}/source-reliability")
+async def get_source_reliability(event_id: str) -> dict[str, str | float]:
+    event = news_repository.get(event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail=f"News event not found: {event_id}")
+    result = source_reliability.evaluate(event.source)
+    return {"source": result.source, "score": result.score, "tier": result.tier}
+
+
 @app.post("/api/v1/news/{event_id}/analyze", response_model=AiDecision)
 async def analyze_news(event_id: str) -> AiDecision:
     try:
