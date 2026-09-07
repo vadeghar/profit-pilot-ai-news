@@ -51,7 +51,21 @@ h1 { margin: 5px 0 0; font-size: 30px; letter-spacing: -.02em; }
 .inspector { position: absolute; z-index: 6; right: 20px; top: 70px; bottom: 170px; width: min(380px, calc(100% - 40px)); max-height: 58%; overflow: auto; padding: 18px; border: 1px solid #344155; border-radius: 16px; background: rgba(8,11,17,.96); box-shadow: 0 20px 60px rgba(0,0,0,.4); backdrop-filter: blur(12px); }
 .inspector-head { display: flex; justify-content: space-between; color: #7d8aa0; font-size: 10px; letter-spacing: .12em; }
 .inspector-head button { border: 0; background: transparent; cursor: pointer; font-size: 20px; }
-.inspector h3 { font-size: 16px; margin: 12px 0 18px; } dl { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px 12px; margin: 0; }
+.inspector h3 { font-size: 16px; margin: 12px 0 18px; }
+dl { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px 12px; margin: 0; }
 dt { color: #667085; font-size: 11px; } dd { margin: 0; font-size: 11px; overflow-wrap: anywhere; }
+.decision-card { padding: 13px; margin-bottom: 12px; border: 1px solid rgba(91,195,156,.22); border-radius: 12px; background: linear-gradient(145deg, rgba(25,57,47,.34), rgba(8,12,18,.35)); }
+.decision-kicker, .section-kicker { color: #6f8095; font-size: 9px; letter-spacing: .16em; }
+.decision-action { margin-top: 7px; font-size: 18px; font-weight: 700; letter-spacing: .02em; }
+.decision-buy { color: #72d7a4; }
+.decision-sell { color: #e47d8e; }
+.decision-ignore { color: #c0a3e7; }
+.decision-confidence { display: flex; justify-content: space-between; margin-top: 9px; color: #748298; font-size: 9px; letter-spacing: .1em; }
+.decision-confidence b { color: #d8dfeb; }
+.decision-card p, .reason-card p { margin: 9px 0 0; color: #a7b1c1; font-size: 11px; line-height: 1.55; }
+.reason-card { padding: 12px 13px; margin-bottom: 14px; border-left: 2px solid #a873df; background: rgba(45,33,63,.2); border-radius: 0 10px 10px 0; }
+.stock-facts { margin-top: 4px; }
+.stock-facts dt { text-transform: uppercase; letter-spacing: .04em; }
+.stock-facts dd { color: #d0d7e2; }
 @media (max-width: 900px) { .telemetry { width: calc(100% - 40px); min-width: 0; bottom: 20px; } .system-panel { display: none; } }
 @media (max-width: 700px) { .shell { padding: 12px; } .brain-graph { min-height: 600px; } .subtitle { display: none; } .telemetry { bottom: 12px; left: 12px; width: calc(100% - 24px); } .canvas { margin-top: 12px; } }
