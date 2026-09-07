@@ -24,6 +24,13 @@ class NewsEventRepository:
                  json.dumps(event.symbols), event.materiality),
             )
 
+    def exists(self, event_id: str) -> bool:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM news_events WHERE id = ? LIMIT 1", (event_id,)
+            ).fetchone()
+        return row is not None
+
     def get(self, event_id: str) -> NewsEvent | None:
         with self.database.connect() as connection:
             row = connection.execute(

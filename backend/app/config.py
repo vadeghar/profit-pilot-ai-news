@@ -12,6 +12,13 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     llm_provider: str = "stub"
     market_data_provider: str = "stub"
+    news_provider: str = "stub"
+    news_rss_feeds: str = ""
+    news_symbol_keywords_json: str = "{}"
+    news_fetch_timeout_seconds: float = 10.0
+    news_max_items_per_feed: int = 50
+    news_poll_interval_seconds: float = 300.0
+    news_trade_quantity: int = 1
     max_order_notional: float = 100_000.0
     max_order_quantity: int = 1_000
 
@@ -29,6 +36,21 @@ class Settings(BaseSettings):
         if not isinstance(value, dict):
             raise ValueError("ANGEL_SYMBOL_TOKENS_JSON must contain a JSON object")
         return {str(key): str(token) for key, token in value.items()}
+
+    @property
+    def news_feeds(self) -> list[str]:
+        return [item.strip() for item in self.news_rss_feeds.split(",") if item.strip()]
+
+    @property
+    def news_symbol_keywords(self) -> dict[str, list[str]]:
+        value = json.loads(self.news_symbol_keywords_json)
+        if not isinstance(value, dict):
+            raise ValueError("NEWS_SYMBOL_KEYWORDS_JSON must contain a JSON object")
+        return {
+            str(symbol): [str(keyword) for keyword in keywords]
+            for symbol, keywords in value.items()
+            if isinstance(keywords, list)
+        }
 
 
 settings = Settings()

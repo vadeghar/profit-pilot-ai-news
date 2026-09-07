@@ -19,8 +19,8 @@ async def test_market_brain_builds_news_ai_trade_and_position_graph(tmp_path: Pa
 
     event = NewsEvent(
         id="event-1",
-        title="Reliance earnings beat expectations",
-        source="test",
+        title="Reliance Industries earnings beat expectations",
+        source="Reuters",
         published_at="2026-09-07T09:00:00+00:00",
         symbols=["RELIANCE"],
         materiality=0.9,
@@ -32,7 +32,7 @@ async def test_market_brain_builds_news_ai_trade_and_position_graph(tmp_path: Pa
             signal=Signal.BUY,
             confidence=0.88,
             reasoning="Positive earnings surprise should support the stock.",
-            prompt_version="news-impact-v1",
+            prompt_version="news-impact-v2",
             model="test-model",
         ),
         prompt="test prompt",
@@ -63,6 +63,9 @@ async def test_market_brain_builds_news_ai_trade_and_position_graph(tmp_path: Pa
 
     node_ids = {node.id for node in snapshot.nodes}
     relations = {(edge.source, edge.target, edge.relation) for edge in snapshot.edges}
+    news_node = next(node for node in snapshot.nodes if node.id == "news:event-1")
+    stock_node = next(node for node in snapshot.nodes if node.id == "stock:RELIANCE")
+    ai_node = next(node for node in snapshot.nodes if node.id == "ai:event-1")
 
     assert "news:event-1" in node_ids
     assert "ai:event-1" in node_ids
@@ -73,3 +76,10 @@ async def test_market_brain_builds_news_ai_trade_and_position_graph(tmp_path: Pa
     assert ("ai:event-1", "stock:RELIANCE", "IMPACTS") in relations
     assert ("stock:RELIANCE", "trade:order-1", "EXECUTED") in relations
     assert ("trade:order-1", "position:RELIANCE", "UPDATES") in relations
+
+    assert news_node.metadata["source_reliability"] == 0.95
+    assert news_node.metadata["source_tier"] == "A"
+    assert stock_node.label == "Reliance Industries Limited"
+    assert stock_node.metadata["matched_alias"] == "Reliance Industries"
+    assert stock_node.metadata["entity_confidence"] == 0.95
+    assert ai_node.metadata["source_tier"] == "A"

@@ -1,5 +1,7 @@
 from app.domain.models import MarketBrainEdge, MarketBrainNode, MarketBrainSnapshot, MarketPhase
+from app.services.entity_catalog import resolver
 from app.services.portfolio import PortfolioService
+from app.services.source_reliability import SourceReliabilityRegistry
 from app.storage import AiDecisionRepository, NewsEventRepository, PaperTradingRepository
 
 
@@ -12,11 +14,13 @@ class MarketBrainService:
         decision_repository: AiDecisionRepository,
         paper_repository: PaperTradingRepository,
         portfolio: PortfolioService,
+        source_reliability: SourceReliabilityRegistry | None = None,
     ) -> None:
         self.news_repository = news_repository
         self.decision_repository = decision_repository
         self.paper_repository = paper_repository
         self.portfolio = portfolio
+        self.source_reliability = source_reliability or SourceReliabilityRegistry()
 
     async def snapshot(
         self,
@@ -33,6 +37,9 @@ class MarketBrainService:
         edges: list[MarketBrainEdge] = []
 
         for event in events:
+            reliability = self.source_reliability.evaluate(event.source)
+            matches = resolver.resolve(event.title)
+            matches_by_symbol = {match.symbol: match for match in matches}
             news_id = f"news:{event.id}"
             nodes.append(
                 MarketBrainNode(
@@ -43,6 +50,9 @@ class MarketBrainService:
                         "source": event.source,
                         "published_at": event.published_at,
                         "materiality": event.materiality,
+                        "source_reliability": reliability.score,
+                        "source_tier": reliability.tier,
+                        "source_reliability_reason": reliability.reason,
                     },
                 )
             )
@@ -63,19 +73,31 @@ class MarketBrainService:
                         "reasoning": decision.reasoning,
                         "prompt_version": decision.prompt_version,
                         "model": decision.model,
+                        "source_reliability": reliability.score,
+                        "source_tier": reliability.tier,
                     },
                 )
             )
             edges.append(MarketBrainEdge(source=news_id, target=ai_id, relation="ANALYZED"))
 
             for symbol in event.symbols:
+                match = matches_by_symbol.get(symbol)
                 stock_id = f"stock:{symbol}"
+                stock_metadata: dict[str, str | float | int | bool] = {"symbol": symbol}
+                if match is not None:
+                    stock_metadata.update(
+                        {
+                            "canonical_name": match.canonical_name,
+                            "matched_alias": match.matched_alias,
+                            "entity_confidence": match.confidence,
+                        }
+                    )
                 nodes.append(
                     MarketBrainNode(
                         id=stock_id,
                         kind="STOCK",
-                        label=symbol,
-                        metadata={"symbol": symbol},
+                        label=match.canonical_name if match is not None else symbol,
+                        metadata=stock_metadata,
                     )
                 )
                 edges.append(MarketBrainEdge(source=ai_id, target=stock_id, relation="IMPACTS"))
