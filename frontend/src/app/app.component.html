@@ -11,6 +11,22 @@
   .lineage-copy { display:grid; gap:2px; min-width:0; }.lineage-copy b { color:#6f8095; font:8px "SFMono-Regular",Consolas,monospace; letter-spacing:.12em; }.lineage-copy strong { color:#dbe4f0; font-size:10px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.lineage-copy small { color:#58677b; font:8px "SFMono-Regular",Consolas,monospace; }
   .pnl-card,.trade-card { margin:0 0 14px; padding:15px; border-radius:13px; border:1px solid rgba(97,216,155,.25); background:linear-gradient(145deg,rgba(22,63,48,.38),rgba(8,12,18,.4)); display:grid; gap:6px; }.trade-card { border-color:rgba(216,163,79,.25); background:linear-gradient(145deg,rgba(65,48,20,.35),rgba(8,12,18,.4)); }
   .pnl-card span,.trade-card span { color:#6f8095; font:8px "SFMono-Regular",Consolas,monospace; letter-spacing:.16em; }.pnl-card strong { color:#72d7a4; font-size:24px; letter-spacing:-.02em; }.pnl-card strong.pnl-loss { color:#e47d8e; }.pnl-card small,.trade-card small { color:#738198; font:9px "SFMono-Regular",Consolas,monospace; }.trade-card strong { color:#e3bd6c; font-size:16px; }
+
+  /* Collapsible bottom cards: same footprint when open, compact footprint when closed. */
+  .telemetry, .system-panel { overflow:hidden !important; transition:height .22s ease, padding .22s ease; }
+  .telemetry { height:178px !important; }
+  .system-panel { height:178px !important; }
+  .telemetry:not([open]), .system-panel:not([open]) { height:52px !important; }
+  .card-toggle { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; cursor:pointer; list-style:none; outline:none; }
+  .card-toggle::-webkit-details-marker { display:none; }
+  .card-toggle:focus-visible { border-radius:8px; box-shadow:0 0 0 2px rgba(115,166,255,.32); }
+  .telemetry .card-toggle { min-height:28px; }
+  .system-panel .card-toggle { min-height:24px; padding-bottom:10px; border-bottom:1px solid rgba(62,76,99,.45); }
+  .system-panel .system-title { padding:0; margin:0; border:0; }
+  .toggle-chevron { flex:0 0 auto; width:22px; height:22px; display:grid; place-items:center; border:1px solid rgba(76,94,119,.7); border-radius:50%; color:#8c9bb0; font:12px/1 Arial,sans-serif; transition:transform .22s ease, background .22s ease; }
+  details[open] .toggle-chevron { transform:rotate(0deg); background:rgba(78,101,132,.12); }
+  details:not([open]) .toggle-chevron { transform:rotate(180deg); }
+  .system-metrics { overflow:hidden; }
   @media (max-width:700px) { .window-picker span { display:none; }.window-picker { padding-left:7px; }.window-picker select { max-width:118px; } }
 </style>
 
