@@ -1,5 +1,6 @@
 from app.domain.models import MarketBrainEdge, MarketBrainNode, MarketBrainSnapshot, MarketPhase
 from app.services.entity_catalog import resolver
+from app.services.market_phase import current_market_phase
 from app.services.portfolio import PortfolioService
 from app.services.source_reliability import SourceReliabilityRegistry
 from app.storage import AiDecisionRepository, NewsEventRepository, PaperTradingRepository
@@ -25,9 +26,10 @@ class MarketBrainService:
     async def snapshot(
         self,
         *,
-        phase: MarketPhase = MarketPhase.MARKET_HOURS,
+        phase: MarketPhase | None = None,
         limit: int = 50,
     ) -> MarketBrainSnapshot:
+        actual_phase = phase or current_market_phase()
         events = self.news_repository.list_recent(limit)
         orders = self.paper_repository.list_orders(limit)
         orders_by_event = {order.event_id: order for order in orders}
@@ -140,7 +142,7 @@ class MarketBrainService:
                         )
                         edges.append(MarketBrainEdge(source=trade_id, target=position_id, relation="UPDATES"))
 
-        return MarketBrainSnapshot(phase=phase, nodes=self._dedupe_nodes(nodes), edges=self._dedupe_edges(edges))
+        return MarketBrainSnapshot(phase=actual_phase, nodes=self._dedupe_nodes(nodes), edges=self._dedupe_edges(edges))
 
     @staticmethod
     def _dedupe_nodes(nodes: list[MarketBrainNode]) -> list[MarketBrainNode]:
