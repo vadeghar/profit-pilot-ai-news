@@ -186,6 +186,13 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     return value;
   }
 
+  dateMetadataValue(value: string | number | boolean | undefined): string | number | null {
+    if (typeof value === 'string' || typeof value === 'number') {
+      return value;
+    }
+    return null;
+  }
+
   private renderGraph(): void {
     const element = this.brainCanvas?.nativeElement;
     if (!element) return;
@@ -238,7 +245,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           d.y = Math.max(45, Math.min(height - 35, d.y ?? height / 2));
         });
         link.attr('x1', d => this.coordinate(d.source, 'x')).attr('y1', d => this.coordinate(d.source, 'y'))
-          .attr('x2', d => this.coordinate(d.target, 'x')).attr('y2', d => this.coordinate(d.target, 'y'));
+          .attr('x2', d => this.coordinate(d.target, 'x')).attr('y2', this.coordinate(d.target, 'y'));
         node.attr('transform', d => `translate(${d.x},${d.y})`);
       });
   }
