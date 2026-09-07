@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from app.domain.models import NewsEvent, Signal, TradeIntent
+from app.domain.models import Signal, TradeIntent
 from app.services.paper_trading import PaperTradingService
 from app.storage import PaperTradingRepository, SqliteDatabase
 
@@ -24,10 +24,11 @@ def intent(event_id: str = "event-1", side: Signal = Signal.BUY, quantity: int =
 def service(tmp_path: Path) -> PaperTradingService:
     database = SqliteDatabase(f"sqlite:///{tmp_path / 'paper.db'}")
     database.initialize()
-    database.connect().execute(
-        "INSERT INTO news_events (id, title, source, published_at, symbols_json, materiality) VALUES (?, ?, ?, ?, ?, ?)",
-        ("event-1", "Test event", "test", "2026-09-07T09:00:00+00:00", '["RELIANCE"]', 0.8),
-    )
+    with database.connect() as connection:
+        connection.execute(
+            "INSERT INTO news_events (id, title, source, published_at, symbols_json, materiality) VALUES (?, ?, ?, ?, ?, ?)",
+            ("event-1", "Test event", "test", "2026-09-07T09:00:00+00:00", '["RELIANCE"]', 0.8),
+        )
     return PaperTradingService(PaperTradingRepository(database))
 
 
