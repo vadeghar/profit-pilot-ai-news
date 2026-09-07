@@ -31,7 +31,7 @@
       <div class="system-title">SYSTEM TELEMETRY</div>
       <div class="metric"><span>NEWS ENGINE</span><b>{{ (health?.news_loop || 'CONNECTING') | uppercase }}</b></div>
       <div class="metric"><span>MARKET DATA</span><b>{{ (health?.market_data_provider || 'UNKNOWN') | uppercase }}</b></div>
-      <div class="metric"><span>LAST SCAN</span><b>{{ health?.last_cycle_at ? (health.last_cycle_at | date:'HH:mm:ss') : '--:--:--' }}</b></div>
+      <div class="metric"><span>LAST SCAN</span><b>{{ health?.last_cycle_at ? (health.last_cycle_at | date:'dd MMM yyyy, HH:mm:ss':'+0530') : '--' }}</b></div>
       <div class="metric"><span>NEW STORIES</span><b>{{ health?.last_cycle_new ?? 0 }}</b></div>
       <div class="metric"><span>AI PROCESSED</span><b>{{ health?.last_cycle_processed ?? 0 }}</b></div>
       <div class="metric" *ngIf="health?.last_cycle_error"><span>PIPELINE</span><b class="warning">WARNING</b></div>
@@ -66,7 +66,8 @@
 
         <dl class="stock-facts">
           <dt>Latest news</dt><dd>{{ selectedNode.metadata['latest_news'] }}</dd>
-          <dt>News published</dt><dd>{{ selectedNode.metadata['news_published_at'] | date:'dd MMM yyyy, HH:mm:ss' }}</dd>
+          <dt>News published (IST)</dt><dd>{{ selectedNode.metadata['news_published_at'] | date:'dd MMM yyyy, HH:mm:ss':'+0530' }}</dd>
+          <dt>AI analyzed (IST)</dt><dd>{{ selectedNode.metadata['ai_analyzed_at'] ? (selectedNode.metadata['ai_analyzed_at'] | date:'dd MMM yyyy, HH:mm:ss':'+0530') : '--' }}</dd>
           <dt>News source</dt><dd>{{ selectedNode.metadata['news_source'] }}</dd>
           <dt>Materiality</dt><dd>{{ selectedNode.metadata['news_materiality'] }}</dd>
           <dt>Entity match</dt><dd>{{ selectedNode.metadata['matched_alias'] }}</dd>
@@ -79,7 +80,7 @@
         <h3>{{ selectedNode.label }}</h3>
         <dl>
           <ng-container *ngFor="let item of selectedNode.metadata | keyvalue">
-            <dt>{{ item.key }}</dt><dd>{{ item.value }}</dd>
+            <dt>{{ formatMetadataKey(item.key) }}</dt><dd>{{ formatMetadataValue(item.key, item.value) }}</dd>
           </ng-container>
         </dl>
       </ng-template>
