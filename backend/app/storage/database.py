@@ -26,8 +26,29 @@ CREATE TABLE IF NOT EXISTS ai_decisions (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS paper_orders (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL REFERENCES news_events(id),
+    symbol TEXT NOT NULL,
+    side TEXT NOT NULL CHECK (side IN ('BUY', 'SELL')),
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    fill_price REAL NOT NULL CHECK (fill_price > 0),
+    notional REAL NOT NULL CHECK (notional > 0),
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS positions (
+    symbol TEXT PRIMARY KEY,
+    quantity INTEGER NOT NULL,
+    average_price REAL NOT NULL DEFAULT 0 CHECK (average_price >= 0),
+    realized_pnl REAL NOT NULL DEFAULT 0
+);
+
 CREATE INDEX IF NOT EXISTS idx_news_events_published_at ON news_events(published_at);
 CREATE INDEX IF NOT EXISTS idx_ai_decisions_news_event_id ON ai_decisions(news_event_id);
+CREATE INDEX IF NOT EXISTS idx_paper_orders_event_id ON paper_orders(event_id);
+CREATE INDEX IF NOT EXISTS idx_paper_orders_created_at ON paper_orders(created_at);
 """
 
 
