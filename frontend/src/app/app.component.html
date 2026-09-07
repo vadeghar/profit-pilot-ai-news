@@ -2,19 +2,35 @@
   <header class="topbar">
     <div>
       <div class="eyebrow">PROFIT PILOT / MARKET INTELLIGENCE</div>
-      <h1>Market Brain</h1>
-      <p class="subtitle">News → AI → Stocks → Signals → Paper Trades → Outcomes</p>
+      <h1>Market Brain <span class="live-mark">●</span></h1>
+      <p class="subtitle">A living map of the last six hours — NEWS → AI → STOCKS</p>
     </div>
-    <div class="phase" [class.phase-live]="snapshot.phase === 'MARKET_HOURS'" [class.phase-closed]="snapshot.phase === 'POST_MARKET'">
-      <i></i>{{ snapshot.phase.replace('_', ' ') }}
+    <div class="header-right">
+      <div class="window-chip"><span></span>{{ graphWindow }}</div>
+      <div class="phase" [class.phase-live]="snapshot.phase === 'MARKET_HOURS'" [class.phase-closed]="snapshot.phase === 'POST_MARKET'">
+        <i></i>{{ snapshot.phase.replace('_', ' ') }}
+      </div>
     </div>
   </header>
 
   <section class="canvas">
     <div class="graph-header">
+      <div class="graph-title"><span class="signal-ring"></span> INTELLIGENCE ORBIT</div>
       <span>{{ snapshot.nodes.length }} nodes</span>
       <span>{{ snapshot.edges.length }} connections</span>
       <span class="live"><i [class.offline-dot]="socketState !== 'LIVE'"></i> {{ socketState }}</span>
+    </div>
+
+    <div class="legend" aria-label="Graph legend">
+      <span><i class="legend-news"></i> NEWS</span>
+      <span><i class="legend-ai"></i> AI</span>
+      <span><i class="legend-stock"></i> STOCK</span>
+      <em>Hover to wake the network · Drag to explore</em>
+    </div>
+
+    <div class="orbit-caption">
+      <b>06H</b>
+      <span>Rolling intelligence window</span>
     </div>
 
     <div class="telemetry" aria-live="polite">
@@ -34,36 +50,29 @@
       <div class="metric"><span>LAST SCAN</span><b>{{ health?.last_cycle_at ? (health.last_cycle_at | date:'dd MMM yyyy, HH:mm:ss':'+0530') : '--' }}</b></div>
       <div class="metric"><span>NEW STORIES</span><b>{{ health?.last_cycle_new ?? 0 }}</b></div>
       <div class="metric"><span>AI PROCESSED</span><b>{{ health?.last_cycle_processed ?? 0 }}</b></div>
+      <div class="metric"><span>AI QUEUE</span><b>{{ health?.ai_queue_pending ?? 0 }}</b></div>
       <div class="metric" *ngIf="health?.last_cycle_error"><span>PIPELINE</span><b class="warning">WARNING</b></div>
     </div>
 
     <div class="empty" *ngIf="snapshot.nodes.length === 0">
       <div class="pulse"></div>
       <h2>Awaiting market intelligence</h2>
-      <p>The intelligence stream is active. Persisted news, AI decisions and paper trades will materialize here.</p>
+      <p>The six-hour orbit is listening. News, AI decisions and stock relationships will materialize here.</p>
     </div>
-    <svg #brainCanvas class="brain-graph" *ngIf="snapshot.nodes.length > 0" aria-label="Market Brain network visualization"></svg>
+    <svg #brainCanvas class="brain-graph" *ngIf="snapshot.nodes.length > 0" aria-label="Six-hour Market Brain network visualization"></svg>
 
     <aside class="inspector" *ngIf="selectedNode">
       <div class="inspector-head"><span>{{ selectedNode.kind }}</span><button (click)="closeInspector()" aria-label="Close">×</button></div>
 
       <ng-container *ngIf="selectedNode.kind === 'STOCK'; else genericInspector">
         <h3>{{ selectedNode.label }}</h3>
-
         <section class="decision-card">
           <div class="decision-kicker">AI DECISION</div>
-          <div class="decision-action" [class.decision-buy]="stockSignal() === 'BUY'" [class.decision-sell]="stockSignal() === 'SELL'" [class.decision-ignore]="stockSignal() === 'IGNORE'">
-            {{ stockAction() }}
-          </div>
+          <div class="decision-action" [class.decision-buy]="stockSignal() === 'BUY'" [class.decision-sell]="stockSignal() === 'SELL'" [class.decision-ignore]="stockSignal() === 'IGNORE'">{{ stockAction() }}</div>
           <div class="decision-confidence">AI CONFIDENCE <b>{{ confidencePercent() }}%</b></div>
           <p>{{ stockActionGuidance() }}</p>
         </section>
-
-        <section class="reason-card">
-          <div class="section-kicker">WHY</div>
-          <p>{{ selectedNode.metadata['ai_reasoning'] || 'No AI reasoning is available for this stock yet.' }}</p>
-        </section>
-
+        <section class="reason-card"><div class="section-kicker">WHY</div><p>{{ selectedNode.metadata['ai_reasoning'] || 'No AI reasoning is available for this stock yet.' }}</p></section>
         <dl class="stock-facts">
           <dt>Latest news</dt><dd>{{ selectedNode.metadata['latest_news'] }}</dd>
           <dt>News published (IST)</dt><dd>{{ dateMetadataValue(selectedNode.metadata['news_published_at']) | date:'dd MMM yyyy, HH:mm:ss':'+0530' }}</dd>
@@ -78,11 +87,7 @@
 
       <ng-template #genericInspector>
         <h3>{{ selectedNode.label }}</h3>
-        <dl>
-          <ng-container *ngFor="let item of selectedNode.metadata | keyvalue">
-            <dt>{{ formatMetadataKey(item.key) }}</dt><dd>{{ formatMetadataValue(item.key, item.value) }}</dd>
-          </ng-container>
-        </dl>
+        <dl><ng-container *ngFor="let item of selectedNode.metadata | keyvalue"><dt>{{ formatMetadataKey(item.key) }}</dt><dd>{{ formatMetadataValue(item.key, item.value) }}</dd></ng-container></dl>
       </ng-template>
     </aside>
   </section>
