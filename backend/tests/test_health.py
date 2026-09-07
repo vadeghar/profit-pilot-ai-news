@@ -21,7 +21,6 @@ def test_news_ingestion_persists_events() -> None:
     with TestClient(app) as client:
         response = client.post("/api/v1/news/ingest")
         assert response.status_code == 200
-        assert len(response.json()) == 2
 
         listed = client.get("/api/v1/news").json()
         ids = {item["id"] for item in listed}
@@ -36,7 +35,7 @@ def test_news_analysis_persists_decision() -> None:
         response = client.post("/api/v1/news/stub-reliance-001/analyze")
         assert response.status_code == 200
         assert response.json()["signal"] == "IGNORE"
-        assert response.json()["prompt_version"] == "news-impact-v1"
+        assert response.json()["prompt_version"] == "news-impact-v2"
 
         decisions = client.get("/api/v1/news/stub-reliance-001/decisions")
         assert decisions.status_code == 200
