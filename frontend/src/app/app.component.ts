@@ -2,6 +2,8 @@ import { CommonModule } from '@angular/common';
 import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import * as d3 from 'd3';
 
+import { environment } from '../environments/environment';
+
 interface BrainNode {
   id: string;
   kind: string;
@@ -63,11 +65,10 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   private connectBrain(): void {
     if (this.destroyed) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname || 'localhost';
+    const wsBaseUrl = environment.apiBaseUrl.replace(/^http/i, 'ws').replace(/\/$/, '');
     this.socketState = 'CONNECTING';
     this.cdr.markForCheck();
-    this.socket = new WebSocket(`${protocol}//${host}:8000/ws/market-brain`);
+    this.socket = new WebSocket(`${wsBaseUrl}/ws/market-brain`);
 
     this.socket.onopen = () => {
       this.reconnectAttempts = 0;
@@ -107,7 +108,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private async refreshTelemetry(): Promise<void> {
     try {
-      const response = await fetch('http://localhost:8000/health');
+      const response = await fetch(`${this.apiBaseUrl()}/health`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const health = await response.json() as HealthStatus;
       const previousCycle = this.health?.last_cycle_at;
@@ -131,7 +132,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private async refreshNews(): Promise<void> {
     try {
-      const response = await fetch('http://localhost:8000/api/v1/news?limit=8');
+      const response = await fetch(`${this.apiBaseUrl()}/api/v1/news?limit=8`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const news = await response.json() as NewsEvent[];
       const previousIds = new Set(this.recentNews.map(item => item.id));
@@ -145,6 +146,10 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     } catch {
       // Health telemetry remains the source of truth when the news endpoint is unavailable.
     }
+  }
+
+  private apiBaseUrl(): string {
+    return environment.apiBaseUrl.replace(/\/$/, '');
   }
 
   private pushActivity(message: string): void {
