@@ -186,6 +186,13 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     return value;
   }
 
+  dateMetadataValue(value: string | number | boolean | undefined): string | number | null {
+    if (typeof value === 'string' || typeof value === 'number') {
+      return value;
+    }
+    return null;
+  }
+
   private renderGraph(): void {
     const element = this.brainCanvas?.nativeElement;
     if (!element) return;
