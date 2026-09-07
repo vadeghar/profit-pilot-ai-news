@@ -11,14 +11,68 @@
     <div class="empty" *ngIf="snapshot.nodes.length === 0">
       <div class="pulse"></div>
       <h2>Waiting for market intelligence</h2>
-      <p>News → AI → Stocks → Signals → Paper Trades</p>
-      <span>WebSocket connected to the paper-trading event stream.</span>
+      <p>News → AI → Stocks → Signals → Paper Trades → Outcomes</p>
+      <span>Waiting for the first persisted news event or paper-trading update.</span>
     </div>
-    <div class="nodes" *ngIf="snapshot.nodes.length > 0">
-      <article class="node" *ngFor="let node of snapshot.nodes">
-        <small>{{ node.kind }}</small>
-        <strong>{{ node.label }}</strong>
-      </article>
+
+    <div class="brain" *ngIf="snapshot.nodes.length > 0">
+      <section class="lane">
+        <span class="lane-title">NEWS SOURCES</span>
+        <button class="node" *ngFor="let node of nodesByKind('NEWS')" (click)="selectNode(node)">
+          <small>{{ node.kind }}</small>
+          <strong>{{ node.label }}</strong>
+          <span>{{ node.metadata['source'] }}</span>
+        </button>
+      </section>
+
+      <section class="lane">
+        <span class="lane-title">AI PROCESSING</span>
+        <button class="node" *ngFor="let node of nodesByKind('AI')" (click)="selectNode(node)">
+          <small>{{ node.kind }}</small>
+          <strong>{{ node.label }}</strong>
+          <span>Confidence {{ node.metadata['confidence'] | number:'1.0-2' }}</span>
+        </button>
+      </section>
+
+      <section class="lane">
+        <span class="lane-title">STOCKS</span>
+        <button class="node" *ngFor="let node of nodesByKind('STOCK')" (click)="selectNode(node)">
+          <small>{{ node.kind }}</small>
+          <strong>{{ node.label }}</strong>
+        </button>
+      </section>
+
+      <section class="lane">
+        <span class="lane-title">PAPER TRADES</span>
+        <button class="node" *ngFor="let node of nodesByKind('PAPER_TRADE')" (click)="selectNode(node)">
+          <small>{{ node.kind }}</small>
+          <strong>{{ node.label }}</strong>
+          <span>{{ node.metadata['status'] }}</span>
+        </button>
+      </section>
+
+      <section class="lane">
+        <span class="lane-title">OUTCOMES</span>
+        <button class="node" *ngFor="let node of nodesByKind('POSITION')" (click)="selectNode(node)">
+          <small>{{ node.kind }}</small>
+          <strong>{{ node.label }}</strong>
+          <span>P&L {{ node.metadata['total_pnl'] | number:'1.2-2' }}</span>
+        </button>
+      </section>
     </div>
+
+    <aside class="inspector" *ngIf="selectedNode">
+      <div class="inspector-head">
+        <span>{{ selectedNode.kind }}</span>
+        <button (click)="selectedNode = undefined">×</button>
+      </div>
+      <h3>{{ selectedNode.label }}</h3>
+      <dl>
+        <ng-container *ngFor="let item of selectedNode.metadata | keyvalue">
+          <dt>{{ item.key }}</dt>
+          <dd>{{ item.value }}</dd>
+        </ng-container>
+      </dl>
+    </aside>
   </section>
 </main>
