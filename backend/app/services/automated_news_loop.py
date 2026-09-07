@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class AutomatedNewsLoop:
-    """Periodically ingest and process newly discovered news events."""
+    """Periodically ingest and process only newly discovered news events."""
 
     def __init__(
         self,
@@ -42,7 +42,7 @@ class AutomatedNewsLoop:
         return self._task is not None and not self._task.done()
 
     async def run_once(self) -> int:
-        events = await self.ingestion.ingest()
+        events = await self.ingestion.ingest_new()
         phase = self.phase_provider()
         processed = 0
         for event in events:
