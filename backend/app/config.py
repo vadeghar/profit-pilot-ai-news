@@ -12,5 +12,11 @@ class Settings(BaseSettings):
     max_order_notional: float = 100_000.0
     max_order_quantity: int = 1_000
 
+    # Angel One SmartAPI placeholders. No broker connection is made yet.
+    angel_api_key: str | None = None
+    angel_client_code: str | None = None
+    angel_password: str | None = None
+    angel_totp_secret: str | None = None
+
 
 settings = Settings()
