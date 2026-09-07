@@ -20,7 +20,7 @@
     <div class="telemetry" aria-live="polite">
       <div class="telemetry-head">
         <span><b></b> INTELLIGENCE STREAM</span>
-        <span>{{ health?.news_provider || 'CONNECTING' | uppercase }} / {{ health?.llm_provider || 'UNKNOWN' | uppercase }}</span>
+        <span>{{ (health?.news_provider || 'CONNECTING') | uppercase }} / {{ (health?.llm_provider || 'UNKNOWN') | uppercase }}</span>
       </div>
       <div class="stream-window">
         <div class="stream-line" *ngFor="let line of activity; let first = first" [class.stream-primary]="first">{{ line }}</div>
@@ -29,8 +29,8 @@
 
     <div class="system-panel">
       <div class="system-title">SYSTEM TELEMETRY</div>
-      <div class="metric"><span>NEWS ENGINE</span><b>{{ health?.news_loop || 'CONNECTING' | uppercase }}</b></div>
-      <div class="metric"><span>MARKET DATA</span><b>{{ health?.market_data_provider || 'UNKNOWN' | uppercase }}</b></div>
+      <div class="metric"><span>NEWS ENGINE</span><b>{{ (health?.news_loop || 'CONNECTING') | uppercase }}</b></div>
+      <div class="metric"><span>MARKET DATA</span><b>{{ (health?.market_data_provider || 'UNKNOWN') | uppercase }}</b></div>
       <div class="metric"><span>LAST SCAN</span><b>{{ health?.last_cycle_at ? (health?.last_cycle_at | date:'HH:mm:ss') : '--:--:--' }}</b></div>
       <div class="metric"><span>NEW STORIES</span><b>{{ health?.last_cycle_new ?? 0 }}</b></div>
       <div class="metric"><span>AI PROCESSED</span><b>{{ health?.last_cycle_processed ?? 0 }}</b></div>
