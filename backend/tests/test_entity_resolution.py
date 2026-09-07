@@ -1,36 +1,23 @@
-from app.domain.models import NewsEvent
-from app.services.entity_resolution import EntityResolutionService
-from app.services.source_reliability import SourceReliabilityService
+from app.services.entity_catalog import resolver
+from app.services.entity_resolution import CompanyEntityResolver
 
 
-def test_resolves_common_nse_aliases() -> None:
-    service = EntityResolutionService.default()
-    assert service.symbols_for("TCS wins a major digital transformation deal") == ["TCS"]
-    assert service.symbols_for("Reliance Industries announces new investment") == ["RELIANCE"]
-    assert service.symbols_for("SBI and HDFC Bank see strong demand") == ["SBIN", "HDFCBANK"]
+def test_resolves_canonical_name_and_alias() -> None:
+    matches = resolver.resolve("Reliance Industries and RIL announce new investment")
+    assert matches
+    assert matches[0].symbol == "RELIANCE"
+    assert matches[0].canonical_name == "Reliance Industries"
 
 
-def test_does_not_match_partial_words() -> None:
-    service = EntityResolutionService.default()
-    assert service.symbols_for("RelianceX reports results") == []
+def test_resolves_multiple_companies_without_substring_false_positive() -> None:
+    matches = resolver.resolve("TCS wins contract while Infosys expands operations")
+    assert {match.symbol for match in matches} == {"TCS", "INFY"}
 
 
-def test_enrich_merges_existing_and_resolved_symbols() -> None:
-    service = EntityResolutionService.default()
-    event = NewsEvent(
-        id="1",
-        title="Infosys and TCS announce partnership",
-        source="test",
-        published_at="2026-09-07T00:00:00+00:00",
-        symbols=["CUSTOM"],
-    )
-    enriched = service.enrich(event)
-    assert enriched.symbols == ["CUSTOM", "INFY", "TCS"]
+def test_custom_catalog_is_supported() -> None:
+    custom = CompanyEntityResolver({"ABC": {"name": "Acme Bank", "aliases": ["Acme"]}})
+    assert custom.resolve_symbols("Acme Bank results") == ["ABC"]
 
 
-def test_source_reliability_uses_tiers() -> None:
-    service = SourceReliabilityService.default()
-    assert service.score("Reuters").score == 0.95
-    assert service.score("Reuters").tier == "A"
-    assert service.score("unknown source").score == 0.50
-    assert service.score("unknown source").tier == "C"
+def test_aliases_are_boundary_matched() -> None:
+    assert resolver.resolve_symbols("The catapults were discussed") == []

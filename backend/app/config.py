@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     news_symbol_keywords_json: str = "{}"
     news_fetch_timeout_seconds: float = 10.0
     news_max_items_per_feed: int = 50
+    news_poll_interval_seconds: float = 300.0
+    news_trade_quantity: int = 1
     max_order_notional: float = 100_000.0
     max_order_quantity: int = 1_000
 

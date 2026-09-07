@@ -8,42 +8,42 @@ class SourceReliability:
     source: str
     score: float
     tier: str
+    reason: str
 
 
-class SourceReliabilityService:
-    """Deterministic source-quality scoring, kept separate from AI materiality."""
+class SourceReliabilityRegistry:
+    """Deterministic source-quality registry.
 
-    def __init__(self, scores: dict[str, float] | None = None, default_score: float = 0.50) -> None:
-        self.scores = {key.casefold(): max(0.0, min(1.0, value)) for key, value in (scores or {}).items()}
-        self.default_score = max(0.0, min(1.0, default_score))
+    Scores are metadata for ranking and AI context, not trading signals. Unknown
+    sources receive a conservative neutral score until reviewed.
+    """
 
-    @classmethod
-    def default(cls) -> "SourceReliabilityService":
-        return cls({
-            "reuters": 0.95,
-            "reuters india": 0.95,
-            "the economic times": 0.90,
-            "economic times": 0.90,
-            "business standard": 0.90,
-            "moneycontrol": 0.85,
-            "livemint": 0.85,
-            "mint": 0.85,
-            "nse": 0.98,
-            "bse": 0.98,
-            "sebi": 1.00,
-            "company filing": 1.00,
-            "google news": 0.55,
-        })
+    def __init__(self, overrides: dict[str, float] | None = None) -> None:
+        self._scores = {
+            "Reuters": 0.95,
+            "The Economic Times": 0.85,
+            "Moneycontrol": 0.80,
+            "CNBC-TV18": 0.82,
+            "Business Standard": 0.86,
+            "Mint": 0.84,
+            "The Hindu BusinessLine": 0.84,
+            "Google News": 0.70,
+        }
+        for source, score in (overrides or {}).items():
+            self._scores[source] = min(1.0, max(0.0, float(score)))
 
-    def score(self, source: str) -> SourceReliability:
-        normalized = source.casefold().strip()
-        score = self.scores.get(normalized, self.default_score)
+    def evaluate(self, source: str) -> SourceReliability:
+        score = self._scores.get(source, 0.50)
         if score >= 0.90:
             tier = "A"
         elif score >= 0.75:
             tier = "B"
-        elif score >= 0.50:
+        elif score >= 0.60:
             tier = "C"
         else:
             tier = "D"
-        return SourceReliability(source=source, score=score, tier=tier)
+        reason = "Configured source reliability" if source in self._scores else "Unknown source; neutral default"
+        return SourceReliability(source, score, tier, reason)
+
+    def score(self, source: str) -> float:
+        return self.evaluate(source).score
