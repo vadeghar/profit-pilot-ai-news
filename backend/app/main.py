@@ -3,29 +3,21 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 
 from app.config import settings
-from app.domain.models import (
-    AiDecision,
-    MarketBrainSnapshot,
-    MarketPhase,
-    NewsEvent,
-    PaperExecutionResult,
-    PaperOrder,
-    PositionSnapshot,
-    ProcessingResult,
-    TradeIntent,
-)
+from app.domain.models import AiDecision, MarketBrainSnapshot, MarketPhase, NewsEvent, PaperExecutionResult, PaperOrder, PositionSnapshot, ProcessingResult, TradeIntent
 from app.providers.angel_one import AngelOneMarketDataProvider
 from app.providers.rss_news import RssNewsProvider
 from app.providers.stub_llm import StubLlmProvider
 from app.providers.stub_market_data import StubMarketDataProvider
 from app.providers.stub_news import StubNewsProvider
 from app.services.ai_analysis import AiAnalysisService
+from app.services.entity_catalog import resolver
 from app.services.event_processing import EventProcessingService
 from app.services.market_brain import MarketBrainService
 from app.services.news_ingestion import NewsIngestionService
 from app.services.paper_trading import PaperTradingService
 from app.services.portfolio import PortfolioService
 from app.services.risk_engine import RiskConfig, RiskEngine
+from app.services.source_reliability import SourceReliabilityRegistry
 from app.storage import AiDecisionRepository, NewsEventRepository, PaperTradingRepository, SqliteDatabase
 
 
@@ -34,9 +26,12 @@ news_repository = NewsEventRepository(database)
 decision_repository = AiDecisionRepository(database)
 paper_repository = PaperTradingRepository(database)
 
+source_reliability = SourceReliabilityRegistry()
+
 if settings.news_provider.lower() == "rss":
     news_provider = RssNewsProvider(
         settings.news_feeds,
+        resolver=resolver,
         symbol_keywords=settings.news_symbol_keywords,
         timeout_seconds=settings.news_fetch_timeout_seconds,
         max_items_per_feed=settings.news_max_items_per_feed,
@@ -62,20 +57,11 @@ news_ingestion = NewsIngestionService(news_provider, news_repository)
 ai_analysis = AiAnalysisService(news_repository, decision_repository, llm_provider)
 risk_engine = RiskEngine(
     market_data_provider,
-    RiskConfig(
-        max_order_notional=settings.max_order_notional,
-        max_order_quantity=settings.max_order_quantity,
-    ),
+    RiskConfig(max_order_notional=settings.max_order_notional, max_order_quantity=settings.max_order_quantity),
 )
 paper_trading = PaperTradingService(paper_repository)
 portfolio = PortfolioService(paper_repository, market_data_provider)
-event_processing = EventProcessingService(
-    news_repository,
-    ai_analysis,
-    risk_engine,
-    paper_trading,
-    paper_repository,
-)
+event_processing = EventProcessingService(news_repository, ai_analysis, risk_engine, paper_trading, paper_repository)
 market_brain = MarketBrainService(news_repository, decision_repository, paper_repository, portfolio)
 
 
@@ -118,13 +104,7 @@ app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {
-        "status": "ok",
-        "environment": settings.environment,
-        "database": "ok" if database.check() else "error",
-        "market_data_provider": settings.market_data_provider,
-        "news_provider": settings.news_provider,
-    }
+    return {"status": "ok", "environment": settings.environment, "database": "ok" if database.check() else "error", "market_data_provider": settings.market_data_provider, "news_provider": settings.news_provider}
 
 
 @app.post("/api/v1/news/ingest", response_model=list[NewsEvent])
@@ -159,17 +139,9 @@ async def list_ai_decisions(event_id: str) -> list[AiDecision]:
 
 
 @app.post("/api/v1/news/{event_id}/process", response_model=ProcessingResult)
-async def process_news_event(
-    event_id: str,
-    quantity: int = 1,
-    market_phase: MarketPhase = MarketPhase.MARKET_HOURS,
-) -> ProcessingResult:
+async def process_news_event(event_id: str, quantity: int = 1, market_phase: MarketPhase = MarketPhase.MARKET_HOURS) -> ProcessingResult:
     try:
-        result = await event_processing.process(
-            event_id,
-            quantity=quantity,
-            market_phase=market_phase,
-        )
+        result = await event_processing.process(event_id, quantity=quantity, market_phase=market_phase)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     await brain_connections.broadcast()
@@ -177,11 +149,7 @@ async def process_news_event(
 
 
 @app.post("/api/v1/news/{event_id}/trade-intent", response_model=TradeIntent)
-async def create_trade_intent(
-    event_id: str,
-    quantity: int = 1,
-    market_phase: MarketPhase = MarketPhase.MARKET_HOURS,
-) -> TradeIntent:
+async def create_trade_intent(event_id: str, quantity: int = 1, market_phase: MarketPhase = MarketPhase.MARKET_HOURS) -> TradeIntent:
     event = news_repository.get(event_id)
     if event is None:
         raise HTTPException(status_code=404, detail=f"News event not found: {event_id}")
