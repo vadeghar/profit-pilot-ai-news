@@ -54,7 +54,13 @@ else:
     market_data_provider = StubMarketDataProvider()
 
 news_ingestion = NewsIngestionService(news_provider, news_repository)
-ai_analysis = AiAnalysisService(news_repository, decision_repository, llm_provider)
+ai_analysis = AiAnalysisService(
+    news_repository,
+    decision_repository,
+    llm_provider,
+    entity_resolver=resolver,
+    source_reliability=source_reliability,
+)
 risk_engine = RiskEngine(
     market_data_provider,
     RiskConfig(max_order_notional=settings.max_order_notional, max_order_quantity=settings.max_order_quantity),
@@ -176,24 +182,3 @@ async def list_paper_orders(limit: int = 50) -> list[PaperOrder]:
     if limit < 1 or limit > 200:
         limit = 50
     return paper_repository.list_orders(limit)
-
-
-@app.get("/api/v1/paper/positions", response_model=list[PositionSnapshot])
-async def list_paper_positions() -> list[PositionSnapshot]:
-    return await portfolio.snapshots()
-
-
-@app.get("/api/v1/market-brain/snapshot", response_model=MarketBrainSnapshot)
-async def market_brain_snapshot() -> MarketBrainSnapshot:
-    return await market_brain.snapshot()
-
-
-@app.websocket("/ws/market-brain")
-async def market_brain_socket(websocket: WebSocket) -> None:
-    await brain_connections.connect(websocket)
-    try:
-        await websocket.send_json((await market_brain.snapshot()).model_dump(mode="json"))
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        brain_connections.disconnect(websocket)
