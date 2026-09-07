@@ -4,8 +4,8 @@ from app.storage.ai_intelligence import MarketKnowledgeRepository
 from app.storage.database import SqliteDatabase
 
 
-def test_market_knowledge_retrieves_relevant_symbol_context() -> None:
-    database = SqliteDatabase("sqlite:///:memory:")
+def test_market_knowledge_retrieves_relevant_symbol_context(tmp_path) -> None:
+    database = SqliteDatabase(f"sqlite:///{tmp_path / 'knowledge.db'}")
     database.initialize()
     repository = MarketKnowledgeRepository(database)
     service = MarketKnowledgeService(repository)
