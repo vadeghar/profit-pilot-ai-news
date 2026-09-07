@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS positions (
 
 CREATE INDEX IF NOT EXISTS idx_news_events_published_at ON news_events(published_at);
 CREATE INDEX IF NOT EXISTS idx_ai_decisions_news_event_id ON ai_decisions(news_event_id);
-CREATE INDEX IF NOT EXISTS idx_paper_orders_event_id ON paper_orders(event_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_paper_orders_event_id_unique ON paper_orders(event_id);
 CREATE INDEX IF NOT EXISTS idx_paper_orders_created_at ON paper_orders(created_at);
 """
 
