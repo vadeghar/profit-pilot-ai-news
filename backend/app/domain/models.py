@@ -32,6 +32,18 @@ class AiDecision(BaseModel):
     model: str
 
 
+class TradeIntent(BaseModel):
+    event_id: str
+    symbol: str
+    side: Signal
+    quantity: int = Field(ge=0)
+    entry_price: float = Field(ge=0)
+    notional: float = Field(ge=0)
+    approved: bool
+    reason: str
+    rule_version: str
+
+
 class MarketBrainNode(BaseModel):
     id: str
     kind: str

@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///backend/data/profit_pilot.db"
     redis_url: str = "redis://localhost:6379/0"
     llm_provider: str = "stub"
+    max_order_notional: float = 100_000.0
+    max_order_quantity: int = 1_000
 
 
 settings = Settings()

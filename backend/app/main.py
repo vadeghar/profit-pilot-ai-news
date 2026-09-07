@@ -3,11 +3,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 
 from app.config import settings
-from app.domain.models import AiDecision, MarketBrainSnapshot, NewsEvent
+from app.domain.models import AiDecision, MarketBrainSnapshot, MarketPhase, NewsEvent, TradeIntent
 from app.providers.stub_llm import StubLlmProvider
+from app.providers.stub_market_data import StubMarketDataProvider
 from app.providers.stub_news import StubNewsProvider
 from app.services.ai_analysis import AiAnalysisService
 from app.services.news_ingestion import NewsIngestionService
+from app.services.risk_engine import RiskConfig, RiskEngine
 from app.storage import AiDecisionRepository, NewsEventRepository, SqliteDatabase
 
 
@@ -16,8 +18,16 @@ news_repository = NewsEventRepository(database)
 decision_repository = AiDecisionRepository(database)
 news_provider = StubNewsProvider()
 llm_provider = StubLlmProvider()
+market_data_provider = StubMarketDataProvider()
 news_ingestion = NewsIngestionService(news_provider, news_repository)
 ai_analysis = AiAnalysisService(news_repository, decision_repository, llm_provider)
+risk_engine = RiskEngine(
+    market_data_provider,
+    RiskConfig(
+        max_order_notional=settings.max_order_notional,
+        max_order_quantity=settings.max_order_quantity,
+    ),
+)
 
 
 @asynccontextmanager
@@ -63,6 +73,21 @@ async def list_ai_decisions(event_id: str) -> list[AiDecision]:
     if news_repository.get(event_id) is None:
         raise HTTPException(status_code=404, detail=f"News event not found: {event_id}")
     return ai_analysis.decisions_for_event(event_id)
+
+
+@app.post("/api/v1/news/{event_id}/trade-intent", response_model=TradeIntent)
+async def create_trade_intent(
+    event_id: str,
+    quantity: int = 1,
+    market_phase: MarketPhase = MarketPhase.MARKET_HOURS,
+) -> TradeIntent:
+    event = news_repository.get(event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail=f"News event not found: {event_id}")
+    decisions = ai_analysis.decisions_for_event(event_id)
+    if not decisions:
+        raise HTTPException(status_code=409, detail="Analyze the news event before creating a trade intent.")
+    return await risk_engine.evaluate(event, decisions[0], quantity=quantity, market_phase=market_phase)
 
 
 @app.get("/api/v1/market-brain/snapshot", response_model=MarketBrainSnapshot)
