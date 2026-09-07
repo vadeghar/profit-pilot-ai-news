@@ -23,7 +23,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   snapshot: BrainSnapshot = { phase: 'PRE_MARKET', nodes: [], edges: [] };
   selectedNode?: BrainNode;
   private socket?: WebSocket;
-  private simulation?: d3.Simulation<BrainNode, BrainEdge>;
+  private simulation?: d3.Simulation<BrainNode, any>;
 
   ngOnInit(): void {
     this.socket = new WebSocket('ws://localhost:8000/ws/market-brain');
@@ -52,27 +52,66 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       .attr('markerWidth', 6).attr('markerHeight', 6).attr('orient', 'auto').append('path').attr('d', 'M0,-5L10,0L0,5');
 
     const laneX: Record<string, number> = { NEWS: width * .10, AI: width * .30, STOCK: width * .50, PAPER_TRADE: width * .70, POSITION: width * .90 };
-    const nodes = this.snapshot.nodes.map(n => ({ ...n, x: laneX[n.kind] ?? width / 2, y: height / 2 }));
-    const links = this.snapshot.edges.map(e => ({ ...e, source: e.source, target: e.target }));
-    const link = svg.append('g').attr('class', 'links').selectAll('line').data(links).join('line').attr('class', 'brain-link').attr('marker-end', 'url(#arrow)');
-    const node = svg.append('g').attr('class', 'nodes').selectAll('g').data(nodes).join('g').attr('class', 'brain-node')
-      .on('click', (_, d) => this.selectNode(d)).call(
-        d3.drag<SVGGElement, BrainNode>().on('start', (event, d) => { if (!event.active) this.simulation?.alphaTarget(.25).restart(); d.x = event.x; d.y = event.y; })
-          .on('drag', (event, d) => { d.x = event.x; d.y = event.y; }).on('end', (event) => { if (!event.active) this.simulation?.alphaTarget(0); }),
+
+    // Keep the D3 datum explicitly typed as BrainNode. The previous map() expression
+    // narrowed x/y to required numbers, which produced a different datum type from
+    // BrainNode and made d3.drag() / forceSimulation() incompatible with the selection.
+    const nodes: BrainNode[] = this.snapshot.nodes.map(n => ({
+      ...n,
+      x: laneX[n.kind] ?? width / 2,
+      y: height / 2,
+    }));
+    const links: BrainEdge[] = this.snapshot.edges.map(e => ({ ...e }));
+
+    const link = svg.append('g').attr('class', 'links')
+      .selectAll<SVGLineElement, BrainEdge>('line')
+      .data(links)
+      .join('line')
+      .attr('class', 'brain-link')
+      .attr('marker-end', 'url(#arrow)');
+
+    const node = svg.append('g').attr('class', 'nodes')
+      .selectAll<SVGGElement, BrainNode>('g')
+      .data(nodes)
+      .join('g')
+      .attr('class', 'brain-node')
+      .on('click', (_, d) => this.selectNode(d))
+      .call(
+        d3.drag<SVGGElement, BrainNode>()
+          .on('start', (event, d) => {
+            if (!event.active) this.simulation?.alphaTarget(.25).restart();
+            d.x = event.x;
+            d.y = event.y;
+          })
+          .on('drag', (event, d) => {
+            d.x = event.x;
+            d.y = event.y;
+          })
+          .on('end', (event) => {
+            if (!event.active) this.simulation?.alphaTarget(0);
+          }),
       );
+
     node.append('circle').attr('r', d => d.kind === 'AI' ? 25 : 20).attr('class', d => `node-${d.kind.toLowerCase()}`);
     node.append('text').attr('class', 'node-kind').attr('dy', -30).text(d => d.kind);
     node.append('text').attr('class', 'node-label').attr('dy', 4).text(d => d.label.length > 24 ? `${d.label.slice(0, 24)}…` : d.label);
 
-    this.simulation = d3.forceSimulation(nodes)
+    this.simulation = d3.forceSimulation<BrainNode>(nodes)
       .force('link', d3.forceLink<BrainNode, BrainEdge>(links).id(d => d.id).distance(120).strength(.65))
-      .force('charge', d3.forceManyBody().strength(-260))
+      .force('charge', d3.forceManyBody<BrainNode>().strength(-260))
       .force('x', d3.forceX<BrainNode>(d => laneX[d.kind] ?? width / 2).strength(.8))
-      .force('y', d3.forceY(height / 2).strength(.08))
+      .force('y', d3.forceY<BrainNode>(height / 2).strength(.08))
       .force('collision', d3.forceCollide<BrainNode>(34))
       .on('tick', () => {
-        nodes.forEach(d => { d.x = Math.max(35, Math.min(width - 35, d.x ?? width / 2)); d.y = Math.max(45, Math.min(height - 35, d.y ?? height / 2)); });
-        link.attr('x1', d => this.coordinate(d.source, 'x')).attr('y1', d => this.coordinate(d.source, 'y')).attr('x2', d => this.coordinate(d.target, 'x')).attr('y2', d => this.coordinate(d.target, 'y'));
+        nodes.forEach(d => {
+          d.x = Math.max(35, Math.min(width - 35, d.x ?? width / 2));
+          d.y = Math.max(45, Math.min(height - 35, d.y ?? height / 2));
+        });
+        link
+          .attr('x1', d => this.coordinate(d.source, 'x'))
+          .attr('y1', d => this.coordinate(d.source, 'y'))
+          .attr('x2', d => this.coordinate(d.target, 'x'))
+          .attr('y2', d => this.coordinate(d.target, 'y'));
         node.attr('transform', d => `translate(${d.x},${d.y})`);
       });
   }
