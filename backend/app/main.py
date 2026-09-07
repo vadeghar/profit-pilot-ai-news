@@ -109,8 +109,22 @@ app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 
 
 @app.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok", "environment": settings.environment, "database": "ok" if database.check() else "error", "market_data_provider": settings.market_data_provider, "news_provider": settings.news_provider, "news_loop": "running" if news_loop.running else "stopped"}
+async def health() -> dict[str, str | int | float | None]:
+    return {
+        "status": "ok",
+        "environment": settings.environment,
+        "database": "ok" if database.check() else "error",
+        "market_phase": current_market_phase().value,
+        "market_data_provider": settings.market_data_provider,
+        "news_provider": settings.news_provider,
+        "llm_provider": settings.llm_provider,
+        "news_loop": "running" if news_loop.running else "stopped",
+        "poll_interval_seconds": settings.news_poll_interval_seconds,
+        "last_cycle_at": news_loop.last_cycle_at,
+        "last_cycle_new": news_loop.last_cycle_new,
+        "last_cycle_processed": news_loop.last_cycle_processed,
+        "last_cycle_error": news_loop.last_cycle_error,
+    }
 
 
 @app.post("/api/v1/news/ingest", response_model=list[NewsEvent])
