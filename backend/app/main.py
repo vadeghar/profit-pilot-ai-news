@@ -13,6 +13,7 @@ from app.domain.models import (
     PositionSnapshot,
     TradeIntent,
 )
+from app.providers.angel_one import AngelOneMarketDataProvider
 from app.providers.stub_llm import StubLlmProvider
 from app.providers.stub_market_data import StubMarketDataProvider
 from app.providers.stub_news import StubNewsProvider
@@ -31,7 +32,19 @@ decision_repository = AiDecisionRepository(database)
 paper_repository = PaperTradingRepository(database)
 news_provider = StubNewsProvider()
 llm_provider = StubLlmProvider()
-market_data_provider = StubMarketDataProvider()
+
+if settings.market_data_provider.lower() == "angel_one":
+    market_data_provider = AngelOneMarketDataProvider(
+        api_key=settings.angel_api_key,
+        client_code=settings.angel_client_code,
+        password=settings.angel_password,
+        totp_secret=settings.angel_totp_secret,
+        symbol_tokens=settings.angel_symbol_tokens,
+        exchange=settings.angel_exchange,
+    )
+else:
+    market_data_provider = StubMarketDataProvider()
+
 news_ingestion = NewsIngestionService(news_provider, news_repository)
 ai_analysis = AiAnalysisService(news_repository, decision_repository, llm_provider)
 risk_engine = RiskEngine(
@@ -89,6 +102,7 @@ async def health() -> dict[str, str]:
         "status": "ok",
         "environment": settings.environment,
         "database": "ok" if database.check() else "error",
+        "market_data_provider": settings.market_data_provider,
     }
 
 
