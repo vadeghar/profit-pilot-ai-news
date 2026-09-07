@@ -3,13 +3,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 
 from app.config import settings
-from app.domain.models import AiDecision, MarketBrainSnapshot, MarketPhase, NewsEvent, PaperOrder, Position, TradeIntent
+from app.domain.models import AiDecision, MarketBrainSnapshot, MarketPhase, NewsEvent, PaperOrder, PositionSnapshot, TradeIntent
 from app.providers.stub_llm import StubLlmProvider
 from app.providers.stub_market_data import StubMarketDataProvider
 from app.providers.stub_news import StubNewsProvider
 from app.services.ai_analysis import AiAnalysisService
 from app.services.news_ingestion import NewsIngestionService
-from app.services.paper_trading import PaperExecutionResult, PaperTradingService
+from app.services.paper_trading import PaperTradingService
+from app.services.portfolio import PortfolioService
 from app.services.risk_engine import RiskConfig, RiskEngine
 from app.storage import AiDecisionRepository, NewsEventRepository, PaperTradingRepository, SqliteDatabase
 
@@ -31,6 +32,7 @@ risk_engine = RiskEngine(
     ),
 )
 paper_trading = PaperTradingService(paper_repository)
+portfolio = PortfolioService(paper_repository, market_data_provider)
 
 
 @asynccontextmanager
@@ -93,12 +95,13 @@ async def create_trade_intent(
     return await risk_engine.evaluate(event, decisions[0], quantity=quantity, market_phase=market_phase)
 
 
-@app.post("/api/v1/trade-intents/execute", response_model=PaperExecutionResult)
-async def execute_trade_intent(intent: TradeIntent) -> PaperExecutionResult:
+@app.post("/api/v1/trade-intents/execute", response_model=TradeIntent)
+async def execute_trade_intent(intent: TradeIntent) -> TradeIntent:
     try:
-        return paper_trading.execute(intent)
+        paper_trading.execute(intent)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return intent
 
 
 @app.get("/api/v1/paper/orders", response_model=list[PaperOrder])
@@ -108,9 +111,9 @@ async def list_paper_orders(limit: int = 50) -> list[PaperOrder]:
     return paper_repository.list_orders(limit)
 
 
-@app.get("/api/v1/paper/positions", response_model=list[Position])
-async def list_paper_positions() -> list[Position]:
-    return paper_repository.list_positions()
+@app.get("/api/v1/paper/positions", response_model=list[PositionSnapshot])
+async def list_paper_positions() -> list[PositionSnapshot]:
+    return await portfolio.snapshots()
 
 
 @app.get("/api/v1/market-brain/snapshot", response_model=MarketBrainSnapshot)
