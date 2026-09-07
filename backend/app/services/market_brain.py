@@ -33,12 +33,13 @@ class MarketBrainService:
         hours: int | None = 6,
     ) -> MarketBrainSnapshot:
         actual_phase = phase or current_market_phase()
-        events = self.news_repository.list_recent(limit)
+        history_limit = 5000 if hours is None else limit
+        events = self.news_repository.list_recent(history_limit)
         if hours is not None:
             cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, hours))
             events = [event for event in events if self._within_window(event.published_at, cutoff)]
 
-        orders = self.paper_repository.list_orders(limit)
+        orders = self.paper_repository.list_orders(5000 if hours is None else limit)
         orders_by_event = {order.event_id: order for order in orders}
         positions = {position.symbol: position for position in await self.portfolio.snapshots()}
 
@@ -172,9 +173,9 @@ class MarketBrainService:
             )
         )
 
-        trade_ids = {node.id for node in nodes if node.kind == "TRADE"}
-        for trade_id in trade_ids:
-            edges.append(MarketBrainEdge(source=trade_id, target=pnl_id, relation="CONTRIBUTES"))
+        for node in nodes:
+            if node.kind == "TRADE":
+                edges.append(MarketBrainEdge(source=node.id, target=pnl_id, relation="CONTRIBUTES"))
 
         return MarketBrainSnapshot(phase=actual_phase, nodes=self._dedupe_nodes(nodes), edges=self._dedupe_edges(edges))
 
