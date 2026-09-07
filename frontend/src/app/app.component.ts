@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import * as d3 from 'd3';
 
 interface BrainNode {
@@ -44,6 +44,11 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   private simulation?: d3.Simulation<BrainNode, any>;
   private telemetryTimer?: ReturnType<typeof setInterval>;
   private newsTimer?: ReturnType<typeof setInterval>;
+  private reconnectTimer?: ReturnType<typeof setTimeout>;
+  private reconnectAttempts = 0;
+  private destroyed = false;
+
+  constructor(private readonly cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
     this.connectBrain();
@@ -56,24 +61,48 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   ngAfterViewInit(): void { this.renderGraph(); }
 
   private connectBrain(): void {
-    this.socket = new WebSocket('ws://localhost:8000/ws/market-brain');
+    if (this.destroyed) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.hostname || 'localhost';
+    this.socketState = 'CONNECTING';
+    this.cdr.markForCheck();
+    this.socket = new WebSocket(`${protocol}//${host}:8000/ws/market-brain`);
+
     this.socket.onopen = () => {
+      this.reconnectAttempts = 0;
       this.socketState = 'LIVE';
       this.pushActivity('STREAM // MARKET BRAIN WEBSOCKET CONNECTED');
+      this.cdr.markForCheck();
     };
     this.socket.onmessage = (event: MessageEvent<string>) => {
       this.snapshot = JSON.parse(event.data) as BrainSnapshot;
       if (this.selectedNode) this.selectedNode = this.snapshot.nodes.find(n => n.id === this.selectedNode?.id);
+      this.cdr.markForCheck();
       setTimeout(() => this.renderGraph());
     };
     this.socket.onerror = () => {
       this.socketState = 'ERROR';
-      this.pushActivity('STREAM // WEBSOCKET ERROR — RETRY REQUIRED');
+      this.pushActivity('STREAM // WEBSOCKET ERROR — RECONNECTING');
+      this.cdr.markForCheck();
     };
     this.socket.onclose = () => {
+      if (this.destroyed) return;
       this.socketState = 'OFFLINE';
-      this.pushActivity('STREAM // MARKET BRAIN DISCONNECTED');
+      this.pushActivity('STREAM // MARKET BRAIN DISCONNECTED — RETRYING');
+      this.cdr.markForCheck();
+      this.scheduleReconnect();
     };
+  }
+
+  private scheduleReconnect(): void {
+    if (this.destroyed || this.reconnectTimer) return;
+    const delay = Math.min(10000, 1000 * (2 ** this.reconnectAttempts));
+    this.reconnectAttempts = Math.min(this.reconnectAttempts + 1, 4);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = undefined;
+      this.connectBrain();
+    }, delay);
   }
 
   private async refreshTelemetry(): Promise<void> {
@@ -93,9 +122,10 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       if (health.last_cycle_error) {
         this.pushActivity(`PIPELINE // WARNING // ${health.last_cycle_error}`);
       }
+      this.cdr.markForCheck();
     } catch {
-      this.socketState = 'OFFLINE';
       this.pushActivity('SYSTEM // BACKEND TELEMETRY UNAVAILABLE');
+      this.cdr.markForCheck();
     }
   }
 
@@ -111,6 +141,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           this.pushActivity(`NEWS // ${item.source.toUpperCase()} // ${item.title}`);
         }
       }
+      this.cdr.markForCheck();
     } catch {
       // Health telemetry remains the source of truth when the news endpoint is unavailable.
     }
@@ -188,12 +219,14 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     return value[axis] ?? 0;
   }
 
-  selectNode(node: BrainNode): void { this.selectedNode = node; }
-  closeInspector(): void { this.selectedNode = undefined; }
+  selectNode(node: BrainNode): void { this.selectedNode = node; this.cdr.markForCheck(); }
+  closeInspector(): void { this.selectedNode = undefined; this.cdr.markForCheck(); }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.simulation?.stop();
     this.socket?.close();
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.telemetryTimer) clearInterval(this.telemetryTimer);
     if (this.newsTimer) clearInterval(this.newsTimer);
   }
