@@ -1,3 +1,5 @@
+import json
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,14 +11,24 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///backend/data/profit_pilot.db"
     redis_url: str = "redis://localhost:6379/0"
     llm_provider: str = "stub"
+    market_data_provider: str = "stub"
     max_order_notional: float = 100_000.0
     max_order_quantity: int = 1_000
 
-    # Angel One SmartAPI placeholders. No broker connection is made yet.
+    # Angel One SmartAPI placeholders. No broker connection is made unless configured.
     angel_api_key: str | None = None
     angel_client_code: str | None = None
     angel_password: str | None = None
     angel_totp_secret: str | None = None
+    angel_exchange: str = "NSE"
+    angel_symbol_tokens_json: str = "{}"
+
+    @property
+    def angel_symbol_tokens(self) -> dict[str, str]:
+        value = json.loads(self.angel_symbol_tokens_json)
+        if not isinstance(value, dict):
+            raise ValueError("ANGEL_SYMBOL_TOKENS_JSON must contain a JSON object")
+        return {str(key): str(token) for key, token in value.items()}
 
 
 settings = Settings()
