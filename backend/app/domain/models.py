@@ -63,6 +63,17 @@ class Position(BaseModel):
     realized_pnl: float = 0
 
 
+class PositionSnapshot(Position):
+    current_price: float = Field(ge=0)
+    unrealized_pnl: float = 0
+    total_pnl: float = 0
+
+
+class PaperExecutionResult(BaseModel):
+    order: PaperOrder
+    position: Position
+
+
 class MarketBrainNode(BaseModel):
     id: str
     kind: str
