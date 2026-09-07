@@ -38,7 +38,8 @@ if settings.news_provider.lower() == "rss":
 else:
     news_provider = StubNewsProvider()
 
-if settings.llm_provider.lower() == "gemini":
+llm_provider_name = settings.llm_provider.lower()
+if llm_provider_name == "gemini":
     if not settings.gemini_api_key:
         raise RuntimeError("LLM_PROVIDER=gemini requires GEMINI_API_KEY")
 
@@ -59,6 +60,14 @@ if settings.llm_provider.lower() == "gemini":
         )
 
     llm_provider = FallbackLlmProvider(primary_llm, fallback_llm)
+elif llm_provider_name == "deepseek":
+    if not settings.deepseek_api_key:
+        raise RuntimeError("LLM_PROVIDER=deepseek requires DEEPSEEK_API_KEY")
+    llm_provider = DeepSeekLlmProvider(
+        api_key=settings.deepseek_api_key,
+        model=settings.deepseek_model,
+        timeout_seconds=settings.deepseek_timeout_seconds,
+    )
 else:
     llm_provider = StubLlmProvider()
 
@@ -134,7 +143,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4200", "http://127.0.0.1:4200"],
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -151,7 +160,7 @@ async def health() -> dict[str, str | int | float | None]:
         "market_data_provider": settings.market_data_provider,
         "news_provider": settings.news_provider,
         "llm_provider": settings.llm_provider,
-        "llm_fallback_provider": "deepseek" if settings.deepseek_api_key else None,
+        "llm_fallback_provider": "deepseek" if llm_provider_name == "gemini" and settings.deepseek_api_key else None,
         "news_loop": "running" if news_loop.running else "stopped",
         "poll_interval_seconds": settings.news_poll_interval_seconds,
         "last_cycle_at": news_loop.last_cycle_at,
