@@ -26,7 +26,7 @@ class GroqLlmProvider(LlmProvider):
         self.max_retries = max(0, max_retries)
         self.retry_base_seconds = max(0.1, retry_base_seconds)
 
-    def _response_format(self) -> dict:
+    def _response_format(self) -> dict[str, object]:
         if self.model in {"openai/gpt-oss-120b", "openai/gpt-oss-20b"}:
             return {
                 "type": "json_schema",
@@ -57,7 +57,7 @@ class GroqLlmProvider(LlmProvider):
         return self.retry_base_seconds * (2**attempt) + random.uniform(0, self.retry_base_seconds)
 
     async def analyze(self, event: NewsEvent, prompt: str) -> AiDecision:
-        payload = {
+        payload: dict[str, object] = {
             "model": self.model,
             "messages": [
                 {
