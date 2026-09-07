@@ -66,12 +66,12 @@
 
         <dl class="stock-facts">
           <dt>Latest news</dt><dd>{{ selectedNode.metadata['latest_news'] }}</dd>
+          <dt>News published</dt><dd>{{ selectedNode.metadata['news_published_at'] | date:'dd MMM yyyy, HH:mm:ss' }}</dd>
           <dt>News source</dt><dd>{{ selectedNode.metadata['news_source'] }}</dd>
           <dt>Materiality</dt><dd>{{ selectedNode.metadata['news_materiality'] }}</dd>
           <dt>Entity match</dt><dd>{{ selectedNode.metadata['matched_alias'] }}</dd>
           <dt>Entity confidence</dt><dd>{{ entityConfidencePercent() }}% — {{ selectedNode.metadata['entity_match_type'] }}</dd>
           <dt>Symbol</dt><dd>{{ selectedNode.metadata['symbol'] }}</dd>
-          <dt>AI model</dt><dd>{{ selectedNode.metadata['ai_model'] }}</dd>
         </dl>
       </ng-container>
 
