@@ -98,6 +98,13 @@ class PaperTradingRepository:
                  order.fill_price, order.notional, order.status, order.created_at),
             )
 
+    def has_order_for_event(self, event_id: str) -> bool:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM paper_orders WHERE event_id = ? LIMIT 1", (event_id,)
+            ).fetchone()
+        return row is not None
+
     def list_orders(self, limit: int = 50) -> list[PaperOrder]:
         with self.database.connect() as connection:
             rows = connection.execute(
