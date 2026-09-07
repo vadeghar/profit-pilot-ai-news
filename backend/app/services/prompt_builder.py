@@ -2,7 +2,7 @@ from app.domain.models import NewsEvent
 from app.services.entity_resolution import CompanyEntityResolver
 from app.services.source_reliability import SourceReliabilityRegistry
 
-PROMPT_VERSION = "news-impact-v2"
+PROMPT_VERSION = "news-impact-v3-market-context"
 
 
 def build_news_impact_prompt(
@@ -10,6 +10,7 @@ def build_news_impact_prompt(
     *,
     resolver: CompanyEntityResolver | None = None,
     source_reliability: SourceReliabilityRegistry | None = None,
+    knowledge_context: list[str] | None = None,
 ) -> str:
     reliability = source_reliability.evaluate(event.source) if source_reliability else None
     entities = resolver.resolve(event.title) if resolver else []
@@ -29,6 +30,8 @@ def build_news_impact_prompt(
         else "NOT_AVAILABLE"
     )
 
+    prior_context = "\n".join(knowledge_context or []) or "- NONE"
+
     return f"""You are an Indian equity-news impact analyst.
 
 Analyze the following news event for short-term NSE-listed equity impact.
@@ -36,6 +39,8 @@ Do not invent facts, prices, targets, or catalysts that are not present in the i
 Return a conservative structured decision with exactly one signal: BUY, SELL, or IGNORE.
 The AI decision is advisory; deterministic market and risk rules are applied separately.
 Source reliability and entity-resolution confidence are context signals, not trading signals by themselves.
+Previously analyzed news is provided as contextual memory. Treat it as historical context, not as verified current fact.
+Prefer the newest event over stale context when the two conflict.
 
 News event:
 - ID: {event.id}
@@ -48,6 +53,9 @@ News event:
 
 Resolved entities:
 {entity_context}
+
+Relevant market knowledge:
+{prior_context}
 
 Assess whether the news is likely to be materially positive, negative, or insufficiently actionable
 for the named stocks. Explain the key reason and assign confidence from 0 to 1.

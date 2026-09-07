@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     groq_api_key: str | None = None
     groq_model: str = "openai/gpt-oss-120b"
     groq_timeout_seconds: float = 30.0
-    groq_max_retries: int = 3
+    groq_max_retries: int = 1
     groq_retry_base_seconds: float = 1.0
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.7-flash"
@@ -32,7 +32,11 @@ class Settings(BaseSettings):
     news_symbol_keywords_json: str = "{}"
     news_fetch_timeout_seconds: float = 10.0
     news_max_items_per_feed: int = 50
-    news_poll_interval_seconds: float = 300.0
+    news_poll_interval_seconds: float = 60.0
+    post_market_ai_interval_seconds: float = 1800.0
+    pre_market_ai_interval_seconds: float = 60.0
+    market_hours_ai_interval_seconds: float = 15.0
+    max_ai_events_per_cycle: int = 5
     news_trade_quantity: int = 1
     max_order_notional: float = 100_000.0
     max_order_quantity: int = 1_000

@@ -35,7 +35,7 @@ def test_news_analysis_persists_decision() -> None:
         response = client.post("/api/v1/news/stub-reliance-001/analyze")
         assert response.status_code == 200
         assert response.json()["signal"] == "IGNORE"
-        assert response.json()["prompt_version"] == "news-impact-v2"
+        assert response.json()["prompt_version"] == "news-impact-v3-market-context"
 
         decisions = client.get("/api/v1/news/stub-reliance-001/decisions")
         assert decisions.status_code == 200

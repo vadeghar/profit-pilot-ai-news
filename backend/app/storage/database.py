@@ -26,6 +26,28 @@ CREATE TABLE IF NOT EXISTS ai_decisions (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS ai_analysis_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    news_event_id TEXT NOT NULL UNIQUE REFERENCES news_events(id),
+    priority REAL NOT NULL DEFAULT 0,
+    status TEXT NOT NULL CHECK (status IN ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED')),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    available_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    processed_at TEXT,
+    last_error TEXT
+);
+
+CREATE TABLE IF NOT EXISTS market_knowledge (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    news_event_id TEXT NOT NULL UNIQUE REFERENCES news_events(id),
+    symbols_json TEXT NOT NULL DEFAULT '[]',
+    keywords_json TEXT NOT NULL DEFAULT '[]',
+    signal TEXT NOT NULL CHECK (signal IN ('BUY', 'SELL', 'IGNORE')),
+    confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+    knowledge_text TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS paper_orders (
     id TEXT PRIMARY KEY,
     event_id TEXT NOT NULL REFERENCES news_events(id),
@@ -47,6 +69,8 @@ CREATE TABLE IF NOT EXISTS positions (
 
 CREATE INDEX IF NOT EXISTS idx_news_events_published_at ON news_events(published_at);
 CREATE INDEX IF NOT EXISTS idx_ai_decisions_news_event_id ON ai_decisions(news_event_id);
+CREATE INDEX IF NOT EXISTS idx_ai_queue_status_available ON ai_analysis_queue(status, available_at, priority);
+CREATE INDEX IF NOT EXISTS idx_knowledge_created_at ON market_knowledge(created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_paper_orders_event_id_unique ON paper_orders(event_id);
 CREATE INDEX IF NOT EXISTS idx_paper_orders_created_at ON paper_orders(created_at);
 """

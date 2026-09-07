@@ -1,0 +1,83 @@
+/* Light-mode orbit palette: preserve the original semantic colors, but lift the fills and outlines for a clean light canvas. */
+.theme-shell:has(.theme-toggle-input:checked) .brain-link {
+  stroke: #8fa5be !important;
+  stroke-opacity: .42 !important;
+}
+
+.theme-shell:has(.theme-toggle-input:checked) .brain-link.link-active {
+  stroke: #6f93bc !important;
+  stroke-opacity: .9 !important;
+  filter: drop-shadow(0 0 4px rgba(111,147,188,.35));
+}
+
+.theme-shell:has(.theme-toggle-input:checked) .node-news {
+  color: #6fa7e2 !important;
+  fill: #e9f3ff !important;
+  stroke: #6fa7e2 !important;
+}
+
+.theme-shell:has(.theme-toggle-input:checked) .node-ai {
+  color: #ae83dc !important;
+  fill: #f1eaff !important;
+  stroke: #ae83dc !important;
+}
+
+.theme-shell:has(.theme-toggle-input:checked) .node-stock {
+  color: #6fc4a2 !important;
+  fill: #e8f8f1 !important;
+  stroke: #6fc4a2 !important;
+}
+
+.theme-shell:has(.theme-toggle-input:checked) .node-trade {
+  color: #d3a45d !important;
+  fill: #fff3df !important;
+  stroke: #d3a45d !important;
+}
+
+.theme-shell:has(.theme-toggle-input:checked) .node-total_pnl {
+  color: #69c99b !important;
+  fill: #e8f8ef !important;
+  stroke: #69c99b !important;
+}
+
+.theme-shell:has(.theme-toggle-input:checked) .node-aura {
+  opacity: .13 !important;
+}
+
+.theme-shell:has(.theme-toggle-input:checked) .node-ripple {
+  opacity: .2 !important;
+}
+
+.theme-shell:has(.theme-toggle-input:checked) .node-core {
+  fill: #c7a9e8 !important;
+  opacity: .72 !important;
+}
+
+.theme-shell:has(.theme-toggle-input:checked) .node-dimmed {
+  opacity: .22;
+}
+
+.theme-shell:has(.theme-toggle-input:checked) .legend-news {
+  background: #6fa7e2;
+  box-shadow: 0 0 8px rgba(111,167,226,.5);
+}
+
+.theme-shell:has(.theme-toggle-input:checked) .legend-ai {
+  background: #ae83dc;
+  box-shadow: 0 0 8px rgba(174,131,220,.5);
+}
+
+.theme-shell:has(.theme-toggle-input:checked) .legend-stock {
+  background: #6fc4a2;
+  box-shadow: 0 0 8px rgba(111,196,162,.5);
+}
+
+.theme-shell:has(.theme-toggle-input:checked) .legend-trade {
+  background: #d3a45d;
+  box-shadow: 0 0 8px rgba(211,164,93,.5);
+}
+
+.theme-shell:has(.theme-toggle-input:checked) .legend-pnl {
+  background: #69c99b;
+  box-shadow: 0 0 8px rgba(105,201,155,.5);
+}

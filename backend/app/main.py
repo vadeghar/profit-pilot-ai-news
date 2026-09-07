@@ -19,20 +19,23 @@ from app.services.automated_news_loop import AutomatedNewsLoop
 from app.services.entity_catalog import resolver
 from app.services.event_processing import EventProcessingService
 from app.services.market_brain import MarketBrainService
+from app.services.market_knowledge import MarketKnowledgeService
 from app.services.market_phase import current_market_phase
 from app.services.news_ingestion import NewsIngestionService
 from app.services.paper_trading import PaperTradingService
 from app.services.portfolio import PortfolioService
 from app.services.risk_engine import RiskConfig, RiskEngine
 from app.services.source_reliability import SourceReliabilityRegistry
-from app.storage import AiDecisionRepository, NewsEventRepository, PaperTradingRepository, SqliteDatabase
+from app.storage import AiDecisionRepository, AiQueueRepository, MarketKnowledgeRepository, NewsEventRepository, PaperTradingRepository, SqliteDatabase
 
 
 database = SqliteDatabase(settings.database_url)
 news_repository = NewsEventRepository(database)
 decision_repository = AiDecisionRepository(database)
-paper_repository = PaperTradingRepository(database)
+ai_queue_repository = AiQueueRepository(database)
+knowledge_repository = MarketKnowledgeRepository(database)
 source_reliability = SourceReliabilityRegistry()
+knowledge_service = MarketKnowledgeService(knowledge_repository)
 
 if settings.news_provider.lower() == "rss":
     news_provider = RssNewsProvider(settings.news_feeds, resolver=resolver, symbol_keywords=settings.news_symbol_keywords, timeout_seconds=settings.news_fetch_timeout_seconds, max_items_per_feed=settings.news_max_items_per_feed)
@@ -43,28 +46,16 @@ llm_provider_name = settings.llm_provider.lower()
 if llm_provider_name == "groq":
     if not settings.groq_api_key:
         raise RuntimeError("LLM_PROVIDER=groq requires GROQ_API_KEY")
-
-    primary_llm = GroqLlmProvider(
+    llm_provider = GroqLlmProvider(
         api_key=settings.groq_api_key,
         model=settings.groq_model,
         timeout_seconds=settings.groq_timeout_seconds,
         max_retries=settings.groq_max_retries,
         retry_base_seconds=settings.groq_retry_base_seconds,
     )
-
-    fallback_llm = None
-    if settings.deepseek_api_key:
-        fallback_llm = DeepSeekLlmProvider(
-            api_key=settings.deepseek_api_key,
-            model=settings.deepseek_model,
-            timeout_seconds=settings.deepseek_timeout_seconds,
-        )
-
-    llm_provider = FallbackLlmProvider(primary_llm, fallback_llm)
 elif llm_provider_name == "gemini":
     if not settings.gemini_api_key:
         raise RuntimeError("LLM_PROVIDER=gemini requires GEMINI_API_KEY")
-
     primary_llm = GeminiLlmProvider(
         api_key=settings.gemini_api_key,
         model=settings.gemini_model,
@@ -72,7 +63,6 @@ elif llm_provider_name == "gemini":
         max_retries=settings.gemini_max_retries,
         retry_base_seconds=settings.gemini_retry_base_seconds,
     )
-
     fallback_llm = None
     if settings.deepseek_api_key:
         fallback_llm = DeepSeekLlmProvider(
@@ -80,7 +70,6 @@ elif llm_provider_name == "gemini":
             model=settings.deepseek_model,
             timeout_seconds=settings.deepseek_timeout_seconds,
         )
-
     llm_provider = FallbackLlmProvider(primary_llm, fallback_llm)
 elif llm_provider_name == "deepseek":
     if not settings.deepseek_api_key:
@@ -99,9 +88,16 @@ else:
     market_data_provider = StubMarketDataProvider()
 
 news_ingestion = NewsIngestionService(news_provider, news_repository)
-ai_analysis = AiAnalysisService(news_repository, decision_repository, llm_provider, entity_resolver=resolver, source_reliability=source_reliability)
+ai_analysis = AiAnalysisService(
+    news_repository,
+    decision_repository,
+    llm_provider,
+    entity_resolver=resolver,
+    source_reliability=source_reliability,
+    knowledge_service=knowledge_service,
+)
 risk_engine = RiskEngine(market_data_provider, RiskConfig(max_order_notional=settings.max_order_notional, max_order_quantity=settings.max_order_quantity))
-paper_trading = PaperTradingService(paper_repository)
+paper_trading = PaperTradingService(paper_repository := PaperTradingRepository(database))
 portfolio = PortfolioService(paper_repository, market_data_provider)
 event_processing = EventProcessingService(news_repository, ai_analysis, risk_engine, paper_trading, paper_repository)
 market_brain = MarketBrainService(news_repository, decision_repository, paper_repository, portfolio)
@@ -109,22 +105,22 @@ market_brain = MarketBrainService(news_repository, decision_repository, paper_re
 
 class MarketBrainConnectionManager:
     def __init__(self) -> None:
-        self.connections: set[WebSocket] = set()
+        self.connections: dict[WebSocket, int | None] = {}
 
-    async def connect(self, websocket: WebSocket) -> None:
+    async def connect(self, websocket: WebSocket, hours: int | None) -> None:
         await websocket.accept()
-        self.connections.add(websocket)
+        self.connections[websocket] = hours
 
     def disconnect(self, websocket: WebSocket) -> None:
-        self.connections.discard(websocket)
+        self.connections.pop(websocket, None)
 
     async def broadcast(self) -> None:
         if not self.connections:
             return
-        payload = (await market_brain.snapshot()).model_dump(mode="json")
         stale: list[WebSocket] = []
-        for websocket in self.connections:
+        for websocket, hours in self.connections.items():
             try:
+                payload = (await market_brain.snapshot(hours=hours)).model_dump(mode="json")
                 await websocket.send_json(payload)
             except Exception:
                 stale.append(websocket)
@@ -146,10 +142,15 @@ def _market_phase() -> MarketPhase:
 news_loop = AutomatedNewsLoop(
     news_ingestion,
     event_processing,
+    queue_repository=ai_queue_repository,
     interval_seconds=settings.news_poll_interval_seconds,
     quantity=settings.news_trade_quantity,
     phase_provider=_market_phase,
     on_update=_broadcast_brain,
+    post_market_ai_interval_seconds=settings.post_market_ai_interval_seconds,
+    pre_market_ai_interval_seconds=settings.pre_market_ai_interval_seconds,
+    market_hours_ai_interval_seconds=settings.market_hours_ai_interval_seconds,
+    max_ai_events_per_cycle=settings.max_ai_events_per_cycle,
 )
 
 
@@ -183,12 +184,18 @@ async def health() -> dict[str, str | int | float | None]:
         "market_data_provider": settings.market_data_provider,
         "news_provider": settings.news_provider,
         "llm_provider": settings.llm_provider,
-        "llm_fallback_provider": "deepseek" if llm_provider_name in {"gemini", "groq"} and settings.deepseek_api_key else None,
+        "llm_fallback_provider": "deepseek" if llm_provider_name == "gemini" and settings.deepseek_api_key else None,
         "news_loop": "running" if news_loop.running else "stopped",
         "poll_interval_seconds": settings.news_poll_interval_seconds,
+        "post_market_ai_interval_seconds": settings.post_market_ai_interval_seconds,
+        "pre_market_ai_interval_seconds": settings.pre_market_ai_interval_seconds,
+        "market_hours_ai_interval_seconds": settings.market_hours_ai_interval_seconds,
+        "ai_queue_pending": ai_queue_repository.pending_count(),
         "last_cycle_at": news_loop.last_cycle_at,
         "last_cycle_new": news_loop.last_cycle_new,
         "last_cycle_processed": news_loop.last_cycle_processed,
+        "last_ai_run_at": news_loop.last_ai_run_at,
+        "last_ai_phase": news_loop.last_ai_phase.value if news_loop.last_ai_phase else None,
         "last_cycle_error": news_loop.last_cycle_error,
     }
 
@@ -279,15 +286,25 @@ async def list_paper_positions() -> list[PositionSnapshot]:
 
 
 @app.get("/api/v1/market-brain/snapshot", response_model=MarketBrainSnapshot)
-async def market_brain_snapshot() -> MarketBrainSnapshot:
-    return await market_brain.snapshot()
+async def market_brain_snapshot(hours: int | None = 6) -> MarketBrainSnapshot:
+    if hours is not None and (hours < 1 or hours > 24 * 365):
+        raise HTTPException(status_code=400, detail="hours must be between 1 and 8760, or omitted for the default six-hour window.")
+    return await market_brain.snapshot(hours=hours)
 
 
 @app.websocket("/ws/market-brain")
 async def market_brain_socket(websocket: WebSocket) -> None:
-    await brain_connections.connect(websocket)
+    raw_hours = websocket.query_params.get("hours", "6")
     try:
-        await websocket.send_json((await market_brain.snapshot()).model_dump(mode="json"))
+        hours: int | None = None if raw_hours.lower() == "all" else int(raw_hours)
+    except ValueError:
+        hours = 6
+    if hours is not None and (hours < 1 or hours > 24 * 365):
+        hours = 6
+
+    await brain_connections.connect(websocket, hours)
+    try:
+        await websocket.send_json((await market_brain.snapshot(hours=hours)).model_dump(mode="json"))
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:

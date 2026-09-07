@@ -17,7 +17,7 @@
             "browser": "src/main.ts",
             "tsConfig": "tsconfig.app.json",
             "assets": [],
-            "styles": ["src/styles.css"]
+            "styles": ["src/styles.css", "src/orbit-light-theme.css"]
           },
           "configurations": {
             "production": {

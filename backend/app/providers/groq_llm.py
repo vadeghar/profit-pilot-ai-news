@@ -17,7 +17,7 @@ class GroqLlmProvider(LlmProvider):
         api_key: str,
         model: str,
         timeout_seconds: float = 30.0,
-        max_retries: int = 3,
+        max_retries: int = 1,
         retry_base_seconds: float = 1.0,
     ) -> None:
         self.api_key = api_key
@@ -26,25 +26,56 @@ class GroqLlmProvider(LlmProvider):
         self.max_retries = max(0, max_retries)
         self.retry_base_seconds = max(0.1, retry_base_seconds)
 
+    def _response_format(self) -> dict[str, object]:
+        if self.model in {"openai/gpt-oss-120b", "openai/gpt-oss-20b"}:
+            return {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "news_impact_decision",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "signal": {"type": "string", "enum": ["BUY", "SELL", "IGNORE"]},
+                            "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                            "reasoning": {"type": "string"},
+                        },
+                        "required": ["signal", "confidence", "reasoning"],
+                        "additionalProperties": False,
+                    },
+                },
+            }
+        return {"type": "json_object"}
+
+    def _delay_for_response(self, response: httpx.Response, attempt: int) -> float:
+        retry_after = response.headers.get("retry-after")
+        if retry_after:
+            try:
+                return max(0.1, float(retry_after))
+            except ValueError:
+                pass
+        return self.retry_base_seconds * (2**attempt) + random.uniform(0, self.retry_base_seconds)
+
     async def analyze(self, event: NewsEvent, prompt: str) -> AiDecision:
-        payload = {
+        payload: dict[str, object] = {
             "model": self.model,
             "messages": [
                 {
                     "role": "system",
                     "content": (
-                        "Return only valid JSON with exactly these fields: "
-                        "signal, confidence, reasoning. "
+                        "Return only the requested structured JSON decision. "
                         "signal must be BUY, SELL, or IGNORE. "
                         "confidence must be a number from 0 to 1."
                     ),
                 },
                 {"role": "user", "content": prompt},
             ],
-            "response_format": {"type": "json_object"},
+            "response_format": self._response_format(),
             "temperature": 0.1,
             "stream": False,
         }
+        if self.model in {"openai/gpt-oss-120b", "openai/gpt-oss-20b"}:
+            payload["reasoning_effort"] = "low"
 
         last_error: Exception | None = None
         for attempt in range(self.max_retries + 1):
@@ -68,14 +99,15 @@ class GroqLlmProvider(LlmProvider):
                     raise RuntimeError(f"Groq request failed: {exc}") from exc
                 if attempt >= self.max_retries:
                     raise RuntimeError(f"Groq request failed after retries: {exc}") from exc
-                delay = self.retry_base_seconds * (2**attempt) + random.uniform(0, self.retry_base_seconds)
-                await asyncio.sleep(delay)
+                await asyncio.sleep(self._delay_for_response(exc.response, attempt))
             except httpx.RequestError as exc:
                 last_error = exc
                 if attempt >= self.max_retries:
                     raise RuntimeError(f"Groq request failed after retries: {exc}") from exc
-                delay = self.retry_base_seconds * (2**attempt) + random.uniform(0, self.retry_base_seconds)
-                await asyncio.sleep(delay)
+                await asyncio.sleep(
+                    self.retry_base_seconds * (2**attempt)
+                    + random.uniform(0, self.retry_base_seconds)
+                )
         else:
             raise RuntimeError(f"Groq request failed: {last_error}") from last_error
 
