@@ -1,6 +1,6 @@
 import json
 
-from app.domain.models import AiDecision, NewsEvent
+from app.domain.models import AiDecision, NewsEvent, PaperOrder, Position
 from app.storage.database import SqliteDatabase
 
 
@@ -79,6 +79,70 @@ class AiDecisionRepository:
             AiDecision(
                 signal=row["signal"], confidence=row["confidence"], reasoning=row["reasoning"],
                 prompt_version=row["prompt_version"], model=row["model"],
+            )
+            for row in rows
+        ]
+
+
+class PaperTradingRepository:
+    def __init__(self, database: SqliteDatabase) -> None:
+        self.database = database
+
+    def save_order(self, order: PaperOrder) -> None:
+        with self.database.connect() as connection:
+            connection.execute(
+                """INSERT INTO paper_orders
+                   (id, event_id, symbol, side, quantity, fill_price, notional, status, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (order.id, order.event_id, order.symbol, order.side.value, order.quantity,
+                 order.fill_price, order.notional, order.status, order.created_at),
+            )
+
+    def list_orders(self, limit: int = 50) -> list[PaperOrder]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM paper_orders ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [
+            PaperOrder(
+                id=row["id"], event_id=row["event_id"], symbol=row["symbol"],
+                side=row["side"], quantity=row["quantity"], fill_price=row["fill_price"],
+                notional=row["notional"], status=row["status"], created_at=row["created_at"],
+            )
+            for row in rows
+        ]
+
+    def get_position(self, symbol: str) -> Position | None:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM positions WHERE symbol = ?", (symbol,)
+            ).fetchone()
+        if row is None:
+            return None
+        return Position(
+            symbol=row["symbol"], quantity=row["quantity"],
+            average_price=row["average_price"], realized_pnl=row["realized_pnl"],
+        )
+
+    def save_position(self, position: Position) -> None:
+        with self.database.connect() as connection:
+            connection.execute(
+                """INSERT INTO positions (symbol, quantity, average_price, realized_pnl)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(symbol) DO UPDATE SET
+                     quantity=excluded.quantity,
+                     average_price=excluded.average_price,
+                     realized_pnl=excluded.realized_pnl""",
+                (position.symbol, position.quantity, position.average_price, position.realized_pnl),
+            )
+
+    def list_positions(self) -> list[Position]:
+        with self.database.connect() as connection:
+            rows = connection.execute("SELECT * FROM positions ORDER BY symbol").fetchall()
+        return [
+            Position(
+                symbol=row["symbol"], quantity=row["quantity"],
+                average_price=row["average_price"], realized_pnl=row["realized_pnl"],
             )
             for row in rows
         ]
